@@ -9,13 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Budget } from '@/lib/types';
-import { Brain, CalendarIcon, CheckSquare, Square } from "lucide-react"; // Added CheckSquare, Square
+import { Brain, CalendarIcon, CheckSquare, Square } from "lucide-react";
 import { aiPoweredBudgetSuggestions, AIPoweredBudgetSuggestionsOutput } from '@/ai/flows/ai-powered-budget-suggestions';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Checkbox } from "@/components/ui/checkbox"; // Added Checkbox
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area"; // Added ScrollArea
 
 interface CreateBudgetModalProps {
   onAddBudget: (budget: Omit<Budget, 'id' | 'userId' | 'spentAmount'>) => void;
@@ -26,7 +27,7 @@ interface CreateBudgetModalProps {
   trigger?: React.ReactNode;
 }
 
-const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Subscriptions", "Insurance", "Debt Payment", "Other"];
+const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Subscriptions", "Insurance", "Debt Payment", "Salary", "Freelance Income", "Investments", "Gifts Received", "Other"];
 const budgetPeriods = ['Monthly', 'Quarterly', 'Yearly', 'Custom'];
 
 export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, isOpen, onOpenChange, trigger }: CreateBudgetModalProps) {
@@ -34,7 +35,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [allocatedAmount, setAllocatedAmount] = useState('');
-  const [spentAmount, setSpentAmount] = useState(''); // For editing
+  const [spentAmount, setSpentAmount] = useState('');
   const [period, setPeriod] = useState<Budget['period']>('Monthly');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
@@ -122,18 +123,24 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     }
 
 
-    const budgetPayload: Omit<Budget, 'id' | 'userId'> = {
+    const budgetPayload: Omit<Budget, 'id' | 'userId' | 'spentAmount'> & { spentAmount?: number } = {
         name,
         category: finalCategory,
         allocatedAmount: parsedAllocatedAmount,
-        spentAmount: parsedSpentAmount, 
+        // spentAmount will be part of the payload only in edit mode, otherwise parent handles it
         period,
         isRecurringBill: isRecurringBill,
     };
+    
+    if (isEditMode) {
+        budgetPayload.spentAmount = parsedSpentAmount;
+    }
 
-    if (period === 'Custom') {
-        if (startDate) budgetPayload.startDate = startDate.toISOString();
-        if (endDate) budgetPayload.endDate = endDate.toISOString();
+    if (period === 'Custom' && startDate) {
+        budgetPayload.startDate = startDate.toISOString();
+    }
+    if (period === 'Custom' && endDate) {
+        budgetPayload.endDate = endDate.toISOString();
     }
     
     if (isRecurringBill && period === 'Monthly' && dueDateDay) {
@@ -145,15 +152,12 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       onUpdateBudget({ 
         ...editingBudget, 
         ...budgetPayload,
-        // Ensure spentAmount is included if it was part of editingBudget
-        spentAmount: parsedSpentAmount !== undefined ? parsedSpentAmount : editingBudget.spentAmount,
+        spentAmount: parsedSpentAmount // Ensure spentAmount is correctly passed for update
       });
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
-      // For onAddBudget, the type Omit<Budget, 'id' | 'userId' | 'spentAmount'> is expected.
-      // The parent (budgets/page.tsx) will set spentAmount to 0 for new budgets.
-      const { spentAmount: payloadSpentAmount, ...restOfPayload } = budgetPayload;
-      onAddBudget(restOfPayload as Omit<Budget, 'id' | 'userId' | 'spentAmount'>);
+      const { spentAmount: payloadSpentAmountForAdd, ...restOfPayloadForAdd } = budgetPayload;
+      onAddBudget(restOfPayloadForAdd as Omit<Budget, 'id' | 'userId' | 'spentAmount'>);
       toast({ title: "Budget Created", description: `Budget "${name}" has been created.` });
     }
 
@@ -182,8 +186,8 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     setIsSuggesting(false);
   };
   
-  const dialogContent = (
-    <form onSubmit={handleSubmit} className="space-y-4">
+  const formContent = (
+    <div className="space-y-4">
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
         <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
@@ -302,8 +306,16 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
           )}
         </div>
       )}
+    </div>
+  );
 
-      <DialogFooter>
+
+  const wrappedDialogContent = (
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-y-hidden">
+      <ScrollArea className="flex-1 p-6 pr-4 md:pr-6"> 
+        {formContent}
+      </ScrollArea>
+      <DialogFooter className="p-6 pt-4 border-t">
         <Button type="submit">{isEditMode ? "Update Budget" : "Create Budget"}</Button>
       </DialogFooter>
     </form>
@@ -313,14 +325,14 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>{trigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
             </DialogDescription>
           </DialogHeader>
-          {dialogContent}
+          {wrappedDialogContent}
         </DialogContent>
       </Dialog>
     );
@@ -328,14 +340,14 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   
   return ( 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0">
+           <DialogHeader className="p-6 pb-4 border-b">
              <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
             </DialogDescription>
           </DialogHeader>
-          {dialogContent}
+          {wrappedDialogContent}
         </DialogContent>
     </Dialog>
   );

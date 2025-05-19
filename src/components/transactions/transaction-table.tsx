@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -48,12 +49,17 @@ export function TransactionTable({ transactions, onEdit, onDelete }: Transaction
 
     if (sortKey) {
       filtered.sort((a, b) => {
-        const valA = a[sortKey];
-        const valB = b[sortKey];
+        // Ensure a and b are not undefined and have the sortKey property
+        const valA = a && typeof a === 'object' && sortKey in a ? a[sortKey] : undefined;
+        const valB = b && typeof b === 'object' && sortKey in b ? b[sortKey] : undefined;
         
         let comparison = 0;
-        if (valA > valB) comparison = 1;
-        else if (valA < valB) comparison = -1;
+        if (valA === undefined && valB !== undefined) comparison = -1;
+        else if (valA !== undefined && valB === undefined) comparison = 1;
+        else if (valA !== undefined && valB !== undefined) {
+            if (valA > valB) comparison = 1;
+            else if (valA < valB) comparison = -1;
+        }
         
         return sortDirection === 'asc' ? comparison : -comparison;
       });
@@ -77,15 +83,15 @@ export function TransactionTable({ transactions, onEdit, onDelete }: Transaction
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 p-4 border rounded-lg md:flex-row bg-card">
+      <div className="flex flex-wrap items-center gap-4 p-4 border rounded-lg bg-card">
         <Input
           placeholder="Search transactions..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="md:max-w-xs"
+          className="flex-grow w-full sm:flex-grow-0 sm:w-auto sm:max-w-xs"
         />
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="md:w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
@@ -97,7 +103,7 @@ export function TransactionTable({ transactions, onEdit, onDelete }: Transaction
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as 'all' | 'income' | 'expense')}>
-          <SelectTrigger className="md:w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
           <SelectContent>
@@ -111,7 +117,7 @@ export function TransactionTable({ transactions, onEdit, onDelete }: Transaction
             <Button
               id="date"
               variant={"outline"}
-              className="md:w-[300px] justify-start text-left font-normal"
+              className="justify-start w-full text-left font-normal sm:w-[300px]"
             >
               <CalendarIcon className="w-4 h-4 mr-2" />
               {dateRange?.from ? (
