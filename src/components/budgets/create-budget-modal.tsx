@@ -58,10 +58,13 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
           setNewCategory(editingBudget.category);
         }
         setAllocatedAmount(String(editingBudget.allocatedAmount));
-        setSpentAmount(String(editingBudget.spentAmount)); // Pre-fill spent amount for editing
+        setSpentAmount(String(editingBudget.spentAmount || 0));
         setPeriod(editingBudget.period);
         setStartDate(editingBudget.startDate ? new Date(editingBudget.startDate) : undefined);
         setEndDate(editingBudget.endDate ? new Date(editingBudget.endDate) : undefined);
+        setAiSuggestion(null); // Clear AI suggestion in edit mode
+        setUserIncome(''); // Clear AI fields in edit mode
+        setUserSpendingHabits(''); // Clear AI fields in edit mode
       } else {
         // Reset form for "Add" mode or when modal is re-opened without editingBudget
         setName('');
@@ -93,21 +96,56 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
        return;
     }
 
-    const budgetData: Omit<Budget, 'id' | 'userId'> = {
-      name,
-      category: finalCategory,
-      allocatedAmount: parseFloat(allocatedAmount),
-      spentAmount: isEditMode ? parseFloat(spentAmount) : 0, // Use existing spentAmount in edit mode
-      period,
-      startDate: period === 'Custom' && startDate ? startDate.toISOString() : undefined,
-      endDate: period === 'Custom' && endDate ? endDate.toISOString() : undefined,
+    const parsedAllocatedAmount = parseFloat(allocatedAmount);
+    if (isNaN(parsedAllocatedAmount) || parsedAllocatedAmount < 0) {
+        toast({ title: "Invalid Amount", description: "Allocated amount must be a valid non-negative number.", variant: "destructive" });
+        return;
+    }
+    
+    const parsedSpentAmount = isEditMode ? parseFloat(spentAmount) : 0;
+     if (isEditMode && (isNaN(parsedSpentAmount) || parsedSpentAmount < 0)) {
+        toast({ title: "Invalid Spent Amount", description: "Spent amount must be a valid non-negative number.", variant: "destructive" });
+        return;
+    }
+
+
+    const budgetPayload: {
+        name: string;
+        category: string;
+        allocatedAmount: number;
+        spentAmount: number; // Only relevant for update, parent sets to 0 for add
+        period: Budget['period'];
+        startDate?: string;
+        endDate?: string;
+    } = {
+        name,
+        category: finalCategory,
+        allocatedAmount: parsedAllocatedAmount,
+        spentAmount: parsedSpentAmount,
+        period,
     };
 
+    if (period === 'Custom') {
+        if (startDate) {
+            budgetPayload.startDate = startDate.toISOString();
+        }
+        if (endDate) {
+            budgetPayload.endDate = endDate.toISOString();
+        }
+    }
+
+
     if (isEditMode && onUpdateBudget && editingBudget) {
-      onUpdateBudget({ ...editingBudget, ...budgetData });
+      onUpdateBudget({ 
+        ...editingBudget, // provides id, userId
+        ...budgetPayload  // provides updated fields (name, category, allocatedAmount, spentAmount, period, startDate?, endDate?)
+      });
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
-      onAddBudget(budgetData as Omit<Budget, 'id' | 'userId' | 'spentAmount'>); // spentAmount is handled
+      // For onAddBudget, the type Omit<Budget, 'id' | 'userId' | 'spentAmount'> is expected
+      // The parent (budgets/page.tsx) will set spentAmount to 0 for new budgets.
+      const { spentAmount: payloadSpentAmount, ...restOfPayload } = budgetPayload;
+      onAddBudget(restOfPayload);
       toast({ title: "Budget Created", description: `Budget "${name}" has been created.` });
     }
 
@@ -159,15 +197,16 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="budgetAmount">Allocated Amount ($)</Label>
-          <Input id="budgetAmount" type="number" value={allocatedAmount} onChange={(e) => setAllocatedAmount(e.target.value)} required />
+          <Input id="budgetAmount" type="number" step="0.01" value={allocatedAmount} onChange={(e) => setAllocatedAmount(e.target.value)} required />
         </div>
         {isEditMode && (
           <div>
             <Label htmlFor="spentAmount">Spent Amount ($)</Label>
-            <Input id="spentAmount" type="number" value={spentAmount} onChange={(e) => setSpentAmount(e.target.value)} required />
+            <Input id="spentAmount" type="number" step="0.01" value={spentAmount} onChange={(e) => setSpentAmount(e.target.value)} required />
           </div>
         )}
-        <div>
+      </div>
+       <div> {/* Moved Period select outside the grid for better layout if only one item remains */}
           <Label htmlFor="budgetPeriod">Period</Label>
           <Select value={period} onValueChange={(value) => setPeriod(value as Budget['period'])}>
             <SelectTrigger id="budgetPeriod">
@@ -178,7 +217,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
             </SelectContent>
           </Select>
         </div>
-      </div>
+
 
       {period === 'Custom' && (
         <div className="grid grid-cols-2 gap-4">
@@ -273,5 +312,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     </Dialog>
   );
 }
+
+    
 
     
