@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, DollarSign, BarChart2, ShieldCheck, MessageCircleHeart, Brain } from "lucide-react";
+import { CheckCircle, DollarSign, BarChart2, ShieldCheck, MessageCircleHeart, Brain, BarChartBig } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
@@ -80,7 +80,7 @@ export default function LandingPage() {
                 description="Set financial goals and track your journey towards achieving them."
               />
               <FeatureCard
-                icon={<Image src="https://placehold.co/32x32.png" alt="Visual Reports" width={32} height={32} data-ai-hint="chart analytics" />}
+                icon={<BarChartBig size={32} />}
                 title="Visual Reports"
                 description="Understand your finances at a glance with intuitive charts and graphs."
               />

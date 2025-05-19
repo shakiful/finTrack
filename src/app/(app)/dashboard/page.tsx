@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react'; 
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins } from "lucide-react"; // Renamed LineChart to avoid conflict
+import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins, Tv, Zap, Dumbbell } from "lucide-react"; // Renamed LineChart to avoid conflict
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -221,9 +220,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {[
-              { name: 'Netflix', date: '25th June', amount: 15.99, icon: <Image src="https://placehold.co/24x24.png" alt="Netflix" width={24} height={24} data-ai-hint="tv streaming" /> },
-              { name: 'Electricity Bill', date: '28th June', amount: 75.50, icon: <Image src="https://placehold.co/24x24.png" alt="Electricity" width={24} height={24} data-ai-hint="energy power" /> },
-              { name: 'Gym Membership', date: '1st July', amount: 40.00, icon: <Image src="https://placehold.co/24x24.png" alt="Gym" width={24} height={24} data-ai-hint="fitness workout" /> },
+              { name: 'Netflix', date: '25th June', amount: 15.99, icon: <Tv className="w-5 h-5" /> },
+              { name: 'Electricity Bill', date: '28th June', amount: 75.50, icon: <Zap className="w-5 h-5" /> },
+              { name: 'Gym Membership', date: '1st July', amount: 40.00, icon: <Dumbbell className="w-5 h-5" /> },
             ].map((bill, index) => (
               <div key={index} className="flex items-center p-3 rounded-md bg-muted/50">
                 <div className="p-2 mr-3 rounded-full bg-primary/10 text-primary">
