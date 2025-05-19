@@ -7,6 +7,6 @@ export const ai = genkit({
   // Changed default model to a common and recent text model.
   // If 'gemini-1.5-flash-latest' is not available in your project/region,
   // you might need to use another valid model like 'gemini-1.0-pro'.
-  model: 'gemini-1.5-flash-latest',
+  model: 'googleai/gemini-2.0-flash',
 });
 
