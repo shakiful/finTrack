@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react'; 
@@ -5,81 +6,259 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins, Tv, Zap, Dumbbell } from "lucide-react"; // Renamed LineChart to avoid conflict
+import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins, Tv, Zap, Dumbbell } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import {
-  ChartConfig, // Added ChartConfig import
+  ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart } from 'recharts'; // Added LineChart and PieChart from recharts
-import { exampleTransactions, exampleGoals, Transaction } from '@/lib/types';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart } from 'recharts';
+import type { Transaction, Goal } from '@/lib/types'; // Updated import
 import { Skeleton } from "@/components/ui/skeleton";
+import { auth, db } from '@/lib/firebase'; // Firebase
+import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from "firebase/firestore"; // Firebase
+import { onAuthStateChanged, User } from 'firebase/auth'; // Firebase
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
-const incomeExpenseChartData = [ // Renamed from chartData to be more specific
-  { month: "Jan", income: 4000, expenses: 2400 },
-  { month: "Feb", income: 3000, expenses: 1398 },
-  { month: "Mar", income: 2000, expenses: 5800 },
-  { month: "Apr", income: 2780, expenses: 3908 },
-  { month: "May", income: 1890, expenses: 4800 },
-  { month: "Jun", income: 2390, expenses: 3800 },
-];
 
-const spendingData = [
-  { name: 'Groceries', value: 400, fill: "hsl(var(--chart-1))" },
-  { name: 'Utilities', value: 300, fill: "hsl(var(--chart-2))" },
-  { name: 'Transport', value: 200, fill: "hsl(var(--chart-3))" },
-  { name: 'Entertainment', value: 250, fill: "hsl(var(--chart-4))" },
-  { name: 'Other', value: 150, fill: "hsl(var(--chart-5))" },
-];
-
-const incomeExpenseChartConfig = { // Renamed from chartConfig
-  income: { label: "Income", color: "hsl(var(--chart-2))" },
-  expenses: { label: "Expenses", color: "hsl(var(--chart-1))" },
-} satisfies ChartConfig;
-
-const spendingByCategoryChartConfig = {
-  Groceries: { label: "Groceries" },
-  Utilities: { label: "Utilities" },
-  Transport: { label: "Transport" },
-  Entertainment: { label: "Entertainment" },
-  Other: { label: "Other" },
-} satisfies ChartConfig;
-
-const SummaryWidget = ({ title, value, icon, trend, trendValue }: { title: string; value: string; icon: React.ReactNode; trend?: 'up' | 'down'; trendValue?: string }) => (
+const SummaryWidget = ({ title, value, icon, trend, trendValue, isLoading }: { title: string; value: string; icon: React.ReactNode; trend?: 'up' | 'down'; trendValue?: string, isLoading?: boolean }) => (
   <Card className="transition-shadow duration-300 hover:shadow-lg">
     <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
       <CardTitle className="text-sm font-medium">{title}</CardTitle>
       {icon}
     </CardHeader>
     <CardContent>
-      <div className="text-2xl font-bold">{value}</div>
-      {trend && trendValue && (
+      {isLoading ? <Skeleton className="w-3/4 h-8 mt-1" /> : <div className="text-2xl font-bold">{value}</div>}
+      {trend && trendValue && !isLoading && (
         <p className={`text-xs text-muted-foreground flex items-center ${trend === 'up' ? 'text-accent' : 'text-destructive'}`}>
           {trend === 'up' ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-          {trendValue} from last month
+          {trendValue}
         </p>
       )}
+      {isLoading && <Skeleton className="w-1/2 h-4 mt-1" />}
     </CardContent>
   </Card>
 );
 
 
 export default function DashboardPage() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [financialGoals, setFinancialGoals] = useState<Goal[]>([]);
+  
+  // State for dashboard summaries - these will be calculated
+  const [currentBalance, setCurrentBalance] = useState(0);
+  const [mtdIncome, setMtdIncome] = useState(0);
+  const [mtdExpenses, setMtdExpenses] = useState(0);
+  const [savingsProgress, setSavingsProgress] = useState(0); // percentage
+
+  // Chart data states
+  const [incomeExpenseChartData, setIncomeExpenseChartData] = useState<any[]>([]);
+  const [spendingData, setSpendingData] = useState<any[]>([]);
+
+
   useEffect(() => {
-    setMounted(true);
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setMounted(true); // Indicate client-side mount after auth state is known
+      if (!user) {
+        setIsLoading(false);
+        // Reset all data if user logs out
+        setRecentTransactions([]);
+        setFinancialGoals([]);
+        setCurrentBalance(0);
+        setMtdIncome(0);
+        setMtdExpenses(0);
+        setSavingsProgress(0);
+        setIncomeExpenseChartData([]);
+        setSpendingData([]);
+      }
+    });
+    return () => unsubscribeAuth();
   }, []);
 
-  const recentTransactions = exampleTransactions.slice(0, 5);
-  const currentBalance = 5830.50;
-  const mtdIncome = 1250.00;
-  const mtdExpenses = 489.75;
-  const savingsProgress = 65; // percentage
+  // Fetch transactions for dashboard
+  useEffect(() => {
+    if (!currentUser) return;
+    setIsLoading(true);
+
+    const now = new Date();
+    const currentMonthStart = startOfMonth(now);
+    const sixMonthsAgo = startOfMonth(subMonths(now, 5)); // For 6 months of data including current
+
+    const transactionsQuery = query(
+      collection(db, "transactions"),
+      where("userId", "==", currentUser.uid),
+      where("date", ">=", Timestamp.fromDate(sixMonthsAgo)), // Fetch last 6 months for charts/MTD
+      orderBy("date", "desc")
+    );
+
+    const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
+      const allFetchedTransactions: Transaction[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        allFetchedTransactions.push({ 
+          id: doc.id, 
+          ...data, 
+          date: (data.date as Timestamp).toDate().toISOString() 
+        } as Transaction);
+      });
+      
+      setRecentTransactions(allFetchedTransactions.slice(0, 5));
+
+      // Calculate MTD Income/Expenses and Current Balance
+      let newMtdIncome = 0;
+      let newMtdExpenses = 0;
+      let newCurrentBalance = 0; // This might need a starting point or be calculated from all transactions ever
+
+      const monthlyIncome: Record<string, number> = {};
+      const monthlyExpenses: Record<string, number> = {};
+      const categorySpending: Record<string, number> = {};
+
+
+      allFetchedTransactions.forEach(tx => {
+        const txDate = new Date(tx.date);
+        // For current balance, sum all
+        if (tx.type === 'income') newCurrentBalance += tx.amount;
+        else newCurrentBalance -= Math.abs(tx.amount);
+
+        // MTD calculations
+        if (txDate >= currentMonthStart && txDate <= endOfMonth(now)) {
+          if (tx.type === 'income') newMtdIncome += tx.amount;
+          else newMtdExpenses += Math.abs(tx.amount);
+        }
+
+        // For Income/Expense Chart (last 6 months)
+        const monthKey = format(txDate, "MMM"); // "Jan", "Feb"
+        if (txDate >= sixMonthsAgo){
+            if (tx.type === 'income') {
+                monthlyIncome[monthKey] = (monthlyIncome[monthKey] || 0) + tx.amount;
+            } else {
+                monthlyExpenses[monthKey] = (monthlyExpenses[monthKey] || 0) + Math.abs(tx.amount);
+            }
+        }
+         // For Spending by Category Chart (current month)
+        if (tx.type === 'expense' && txDate >= currentMonthStart && txDate <= endOfMonth(now)) {
+            categorySpending[tx.category] = (categorySpending[tx.category] || 0) + Math.abs(tx.amount);
+        }
+      });
+
+      setMtdIncome(newMtdIncome);
+      setMtdExpenses(newMtdExpenses);
+      setCurrentBalance(newCurrentBalance); // Note: This is a running balance of fetched transactions.
+
+      // Prepare income/expense chart data
+      const chartMonths = Array.from({length: 6}, (_, i) => format(subMonths(now, 5 - i), "MMM"));
+      const newIncomeExpenseData = chartMonths.map(month => ({
+        month,
+        income: monthlyIncome[month] || 0,
+        expenses: monthlyExpenses[month] || 0,
+      }));
+      setIncomeExpenseChartData(newIncomeExpenseData);
+
+      // Prepare spending by category data
+      const colors = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+      const newSpendingData = Object.entries(categorySpending)
+        .map(([name, value], index) => ({ name, value, fill: colors[index % colors.length] }))
+        .sort((a,b) => b.value - a.value) // Sort for pie chart display
+        .slice(0,5); // Show top 5 categories, or adjust as needed
+      setSpendingData(newSpendingData);
+
+
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching transactions for dashboard:", error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribeTransactions();
+  }, [currentUser]);
+
+  // Fetch goals for dashboard
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const goalsQuery = query(
+      collection(db, "goals"),
+      where("userId", "==", currentUser.uid),
+      limit(3) // Limit to 3 for dashboard display
+    );
+
+    const unsubscribeGoals = onSnapshot(goalsQuery, (snapshot) => {
+      const fetchedGoals: Goal[] = [];
+      let totalTarget = 0;
+      let totalCurrent = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const goal = { 
+            id: doc.id, 
+            ...data, 
+            targetDate: data.targetDate ? (data.targetDate as Timestamp).toDate().toISOString() : undefined 
+        } as Goal;
+        fetchedGoals.push(goal);
+        totalTarget += goal.targetAmount;
+        totalCurrent += goal.currentAmount;
+      });
+      setFinancialGoals(fetchedGoals);
+      if (totalTarget > 0) {
+        setSavingsProgress(Math.round((totalCurrent / totalTarget) * 100));
+      } else {
+        setSavingsProgress(0);
+      }
+    });
+    return () => unsubscribeGoals();
+  }, [currentUser]);
+
+
+const incomeExpenseChartConfig = { 
+  income: { label: "Income", color: "hsl(var(--chart-2))" },
+  expenses: { label: "Expenses", color: "hsl(var(--chart-1))" },
+} satisfies ChartConfig;
+
+const spendingByCategoryChartConfig = {
+  // Dynamically generate this based on spendingData keys if needed, or predefine common ones
+  // For simplicity, this will be used by ChartContainer but legend/tooltip will use data keys
+} satisfies ChartConfig;
+
+
+  if (!mounted) { // Wait for client-side mount to avoid hydration issues with auth
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                <div>
+                    <Skeleton className="w-48 h-8" />
+                    <Skeleton className="w-64 h-4 mt-2" />
+                </div>
+                <div className="flex gap-2">
+                    <Skeleton className="w-32 h-10" />
+                    <Skeleton className="w-32 h-10" />
+                </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {Array.from({length: 4}).map((_, i) => <Skeleton key={i} className="w-full h-32 rounded-lg"/>)}
+            </div>
+             <div className="grid gap-6 lg:grid-cols-2">
+                <Skeleton className="w-full h-80 rounded-lg"/>
+                <Skeleton className="w-full h-80 rounded-lg"/>
+            </div>
+        </div>
+    );
+  }
+
+  if (isLoading && currentUser) {
+     return <div className="text-center py-10">Loading dashboard data...</div>
+  }
+  
+  if (!currentUser && !isLoading) {
+     return <div className="text-center py-10">Please log in to view your dashboard.</div>
+  }
 
   return (
     <div className="space-y-6">
@@ -89,29 +268,27 @@ export default function DashboardPage() {
             <p className="text-muted-foreground">Welcome back! Here's your financial overview.</p>
         </div>
         <div className="flex gap-2">
-            <Button asChild variant="outline"><Link href="/transactions/add"><PlusCircle className="w-4 h-4 mr-2" />Add Transaction</Link></Button>
-            <Button asChild><Link href="/budgets/create"><PieChartIcon className="w-4 h-4 mr-2" />Create Budget</Link></Button>
+            <Button asChild variant="outline"><Link href="/transactions"><PlusCircle className="w-4 h-4 mr-2" />Add Transaction</Link></Button>
+            <Button asChild><Link href="/budgets"><PieChartIcon className="w-4 h-4 mr-2" />Create Budget</Link></Button>
         </div>
       </div>
       
-      {/* Summary Widgets */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryWidget title="Current Balance" value={`$${currentBalance.toFixed(2)}`} icon={<DollarSign className="w-5 h-5 text-muted-foreground" />} trend="up" trendValue="+5.2%" />
-        <SummaryWidget title="Income (MTD)" value={`$${mtdIncome.toFixed(2)}`} icon={<Banknote className="w-5 h-5 text-muted-foreground" />} trend="up" trendValue="+10%" />
-        <SummaryWidget title="Expenses (MTD)" value={`$${mtdExpenses.toFixed(2)}`} icon={<HandCoins className="w-5 h-5 text-muted-foreground" />} trend="down" trendValue="-3%" />
+        <SummaryWidget title="Current Balance" value={`$${currentBalance.toFixed(2)}`} icon={<DollarSign className="w-5 h-5 text-muted-foreground" />} isLoading={isLoading} />
+        <SummaryWidget title="Income (MTD)" value={`$${mtdIncome.toFixed(2)}`} icon={<Banknote className="w-5 h-5 text-muted-foreground" />} trend="up" trendValue="" isLoading={isLoading} />
+        <SummaryWidget title="Expenses (MTD)" value={`$${mtdExpenses.toFixed(2)}`} icon={<HandCoins className="w-5 h-5 text-muted-foreground" />} trend="down" trendValue="" isLoading={isLoading} />
         <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardTitle className="text-sm font-medium">Savings Progress</CardTitle>
                 <Target className="w-5 h-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{savingsProgress}%</div>
-                <Progress value={savingsProgress} className="w-full mt-2 h-2" />
+                {isLoading ? <Skeleton className="w-1/2 h-8 mt-1"/> : <div className="text-2xl font-bold">{savingsProgress}%</div> }
+                {isLoading ? <Skeleton className="w-full h-2 mt-2"/> : <Progress value={savingsProgress} className="w-full mt-2 h-2" /> }
             </CardContent>
         </Card>
       </div>
 
-      {/* Main Charts Area */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="col-span-1 lg:col-span-1">
           <CardHeader>
@@ -119,6 +296,7 @@ export default function DashboardPage() {
             <CardDescription>Monthly overview for the last 6 months.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] lg:h-[350px]">
+            {isLoading ? <Skeleton className="w-full h-full" /> : (
              <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={incomeExpenseChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
@@ -132,6 +310,7 @@ export default function DashboardPage() {
                 </LineChart>
               </ResponsiveContainer>
             </ChartContainer>
+            )}
           </CardContent>
         </Card>
         <Card className="col-span-1 lg:col-span-1">
@@ -140,11 +319,12 @@ export default function DashboardPage() {
             <CardDescription>Current month's spending breakdown.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] lg:h-[350px] flex items-center justify-center">
+            {isLoading ? <Skeleton className="w-full h-full" /> : (
             <ChartContainer config={spendingByCategoryChartConfig} className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                       <Pie data={spendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} 
-                           label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                           label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
                               const RADIAN = Math.PI / 180;
                               const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
                               const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -165,11 +345,11 @@ export default function DashboardPage() {
                   </PieChart>
               </ResponsiveContainer>
             </ChartContainer>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Transactions & Upcoming Bills */}
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -177,6 +357,7 @@ export default function DashboardPage() {
             <Link href="/transactions" className="text-sm text-primary hover:underline">View All</Link>
           </CardHeader>
           <CardContent>
+            {isLoading ? <Skeleton className="w-full h-40" /> : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -187,7 +368,7 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mounted ? (
+                {recentTransactions.length > 0 ? (
                   recentTransactions.map((transaction: Transaction) => (
                     <TableRow key={transaction.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-medium">{transaction.description}</TableCell>
@@ -199,24 +380,18 @@ export default function DashboardPage() {
                     </TableRow>
                   ))
                 ) : (
-                  Array.from({ length: 5 }).map((_, index) => (
-                    <TableRow key={`loading-tx-${index}`}>
-                      <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-[70px]" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-[60px] ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
+                  <TableRow><TableCell colSpan={4} className="text-center">No recent transactions.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader>
             <CardTitle>Upcoming Bills & Subscriptions</CardTitle>
-            <CardDescription>Don't miss a payment.</CardDescription>
+            <CardDescription>Don't miss a payment. (Static Demo)</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {[
@@ -239,15 +414,15 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Financial Goals Overview */}
       <Card>
         <CardHeader>
           <CardTitle>Financial Goals</CardTitle>
           <Link href="/goals" className="text-sm text-primary hover:underline">Manage Goals</Link>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {mounted ? (
-            exampleGoals.slice(0,3).map(goal => (
+          {isLoading ? Array.from({length:3}).map((_,i) => <Skeleton key={i} className="w-full h-40 rounded-lg"/>) : 
+            financialGoals.length > 0 ? (
+            financialGoals.map(goal => (
               <Card key={goal.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <CardTitle className="text-lg">{goal.name}</CardTitle>
@@ -262,22 +437,10 @@ export default function DashboardPage() {
               </Card>
             ))
           ) : (
-            Array.from({ length: 3 }).map((_, index) => ( 
-              <Card key={`loading-goal-${index}`}>
-                <CardHeader>
-                  <CardTitle><Skeleton className="h-6 w-3/4" /></CardTitle>
-                  <CardDescription><Skeleton className="h-4 w-1/2" /></CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-3 w-full mb-2" />
-                  <Skeleton className="h-4 w-3/4" />
-                </CardContent>
-              </Card>
-            ))
+            <p className="text-muted-foreground md:col-span-2 lg:col-span-3 text-center">No financial goals set yet.</p>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

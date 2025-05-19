@@ -1,75 +1,169 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Target, PlusCircle } from "lucide-react";
 import { GoalCard } from '@/components/goals/goal-card';
 import { SetGoalModal } from '@/components/goals/set-goal-modal';
-import { Goal, exampleGoals } from '@/lib/types'; // Using example data
+import type { Goal } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
+import { auth, db } from '@/lib/firebase';
+import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function GoalsPage() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<Goal | null>(null); // For future edit
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [addingFundsGoal, setAddingFundsGoal] = useState<Goal | null>(null);
   const [fundAmount, setFundAmount] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    setGoals(exampleGoals);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (!user) {
+        setGoals([]);
+        setIsLoading(false);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
-  const handleAddGoal = (newGoalData: Omit<Goal, 'id' | 'currentAmount'>) => {
-    const newGoal: Goal = {
-      ...newGoalData,
-      id: String(Date.now() + Math.random()), // Simple unique ID
-      currentAmount: 0, // New goals start with 0 saved
-    };
-    // If initialSaving was part of newGoalData, it would be set here.
-    // e.g. currentAmount: newGoalData.initialSaving || 0
-    setGoals(prev => [...prev, newGoal]);
-    setIsModalOpen(false);
+  useEffect(() => {
+    if (!currentUser) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const q = query(collection(db, "goals"), where("userId", "==", currentUser.uid));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const goalsData: Goal[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        goalsData.push({
+          id: doc.id,
+          userId: data.userId,
+          name: data.name,
+          targetAmount: data.targetAmount,
+          currentAmount: data.currentAmount,
+          targetDate: data.targetDate ? (data.targetDate as Timestamp).toDate().toISOString() : undefined,
+          description: data.description,
+        });
+      });
+      setGoals(goalsData);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching goals:", error);
+      toast({ title: "Error", description: "Could not fetch goals.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, toast]);
+
+  const handleAddGoal = async (newGoalData: Omit<Goal, 'id' | 'userId' | 'currentAmount'>) => {
+    if (!currentUser) {
+      toast({ title: "Not Authenticated", description: "You must be logged in.", variant: "destructive" });
+      return;
+    }
+    try {
+      const goalToSave = {
+        ...newGoalData,
+        userId: currentUser.uid,
+        currentAmount: 0, // New goals start with 0 saved
+        targetDate: newGoalData.targetDate ? Timestamp.fromDate(new Date(newGoalData.targetDate)) : undefined,
+      };
+      await addDoc(collection(db, "goals"), goalToSave);
+      toast({ title: "Goal Set", description: `Goal "${newGoalData.name}" has been set.` });
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error adding goal:", error);
+      toast({ title: "Error", description: "Could not add goal.", variant: "destructive" });
+    }
   };
 
   const handleEditGoal = (goal: Goal) => {
     setEditingGoal(goal);
-    // setIsModalOpen(true); // Open modal pre-filled for editing
-    toast({ title: "Edit Action", description: `Editing goal: ${goal.name}. (Full edit UI not implemented)`});
+    // setIsModalOpen(true); // This would open SetGoalModal adapted for editing
+    toast({ title: "Edit Action (Conceptual)", description: `Editing goal: ${goal.name}. Full edit UI with Firestore update needs modal adaptation.`});
   };
 
-  const handleDeleteGoal = (goalId: string) => {
-    setGoals(prev => prev.filter(g => g.id !== goalId));
-    toast({ title: "Goal Deleted", description: "The financial goal has been removed." });
+  const handleUpdateGoal = async (updatedGoal: Goal) => {
+    if (!currentUser || !updatedGoal.id) return;
+    try {
+      const goalRef = doc(db, "goals", updatedGoal.id);
+      const dataToUpdate = {
+        ...updatedGoal,
+        targetDate: updatedGoal.targetDate ? Timestamp.fromDate(new Date(updatedGoal.targetDate)) : undefined,
+      };
+      await updateDoc(goalRef, dataToUpdate);
+      toast({ title: "Goal Updated", description: "Goal has been updated." });
+      setIsModalOpen(false);
+      setEditingGoal(null);
+    } catch (error) {
+      console.error("Error updating goal:", error);
+      toast({ title: "Error", description: "Could not update goal.", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteGoal = async (goalId: string) => {
+    if (!currentUser) return;
+    try {
+      await deleteDoc(doc(db, "goals", goalId));
+      toast({ title: "Goal Deleted", description: "The financial goal has been removed." });
+    } catch (error) {
+      console.error("Error deleting goal:", error);
+      toast({ title: "Error", description: "Could not delete goal.", variant: "destructive" });
+    }
   };
   
   const handleOpenAddFundsModal = (goal: Goal) => {
     setAddingFundsGoal(goal);
-    setFundAmount(''); // Reset amount
+    setFundAmount('');
   };
 
-  const handleConfirmAddFunds = () => {
-    if (!addingFundsGoal || !fundAmount) return;
+  const handleConfirmAddFunds = async () => {
+    if (!currentUser || !addingFundsGoal || !fundAmount) return;
     const amountToAdd = parseFloat(fundAmount);
     if (isNaN(amountToAdd) || amountToAdd <= 0) {
       toast({ title: "Invalid Amount", description: "Please enter a valid positive amount.", variant: "destructive"});
       return;
     }
 
-    setGoals(prevGoals => 
-      prevGoals.map(g => 
-        g.id === addingFundsGoal.id 
-          ? { ...g, currentAmount: Math.min(g.currentAmount + amountToAdd, g.targetAmount) } 
-          : g
-      )
-    );
-    toast({ title: "Funds Added", description: `$${amountToAdd.toFixed(2)} added to "${addingFundsGoal.name}".`});
-    setAddingFundsGoal(null);
+    try {
+      const goalRef = doc(db, "goals", addingFundsGoal.id);
+      const newCurrentAmount = Math.min(addingFundsGoal.currentAmount + amountToAdd, addingFundsGoal.targetAmount);
+      await updateDoc(goalRef, { currentAmount: newCurrentAmount });
+      toast({ title: "Funds Added", description: `$${amountToAdd.toFixed(2)} added to "${addingFundsGoal.name}".`});
+      setAddingFundsGoal(null);
+    } catch (error) {
+      console.error("Error adding funds:", error);
+      toast({ title: "Error", description: "Could not add funds to goal.", variant: "destructive" });
+    }
   };
+  
+  const handleModalOpenChange = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open) {
+      setEditingGoal(null); 
+    }
+  }
 
+  if (isLoading && !currentUser) {
+    return <div className="flex justify-center items-center h-64">Loading user data...</div>;
+  }
+   if (!currentUser && !isLoading) {
+     return <div className="flex justify-center items-center h-64">Please log in to view goals.</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -80,13 +174,16 @@ export default function GoalsPage() {
         </div>
         <SetGoalModal
             onAddGoal={handleAddGoal}
+            // onUpdateGoal={handleUpdateGoal} // Add if modal is adapted
+            // editingGoal={editingGoal} // Add if modal is adapted
             isOpen={isModalOpen}
-            onOpenChange={setIsModalOpen}
+            onOpenChange={handleModalOpenChange}
             trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
         />
       </div>
 
-      {goals.length > 0 ? (
+      {isLoading && currentUser && <div className="text-center">Loading goals...</div>}
+      {!isLoading && goals.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {goals.map((goal) => (
             <GoalCard 
@@ -99,28 +196,29 @@ export default function GoalsPage() {
           ))}
         </div>
       ) : (
-        <Card className="text-center col-span-full">
-            <CardHeader>
-                <div className="mx-auto bg-muted/50 p-3 rounded-full w-fit">
-                    <Target className="w-10 h-10 text-muted-foreground" />
-                </div>
-                <CardTitle className="mt-4">No Goals Set Yet</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p className="text-muted-foreground">Define your financial goals to start tracking your progress.</p>
-            </CardContent>
-            <CardFooter className="justify-center">
-                 <SetGoalModal
-                    onAddGoal={handleAddGoal}
-                    isOpen={isModalOpen}
-                    onOpenChange={setIsModalOpen}
-                    trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
-                />
-            </CardFooter>
-        </Card>
+        !isLoading && (
+          <Card className="text-center col-span-full">
+              <CardHeader>
+                  <div className="mx-auto bg-muted/50 p-3 rounded-full w-fit">
+                      <Target className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                  <CardTitle className="mt-4">No Goals Set Yet</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <p className="text-muted-foreground">Define your financial goals to start tracking your progress.</p>
+              </CardContent>
+              <CardFooter className="justify-center">
+                   <SetGoalModal
+                      onAddGoal={handleAddGoal}
+                      isOpen={isModalOpen} // This single modal instance might be tricky
+                      onOpenChange={handleModalOpenChange}
+                      trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
+                  />
+              </CardFooter>
+          </Card>
+        )
       )}
 
-      {/* Add Funds Modal */}
       <Dialog open={!!addingFundsGoal} onOpenChange={(open) => !open && setAddingFundsGoal(null)}>
         <DialogContent>
           <DialogHeader>
@@ -150,6 +248,3 @@ export default function GoalsPage() {
     </div>
   );
 }
-
-// Placeholder Card component if not already defined elsewhere
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";

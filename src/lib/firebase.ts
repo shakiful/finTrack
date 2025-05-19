@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth"; // Added GoogleAuthProvider, signInWithPopup
-// import { getFirestore } from "firebase/firestore"; // Uncomment if you plan to use Firestore
+import { getFirestore } from "firebase/firestore"; // Ensure Firestore is imported
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -16,7 +16,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider(); // Export instance
-// const db = getFirestore(app); // Uncomment if you plan to use Firestore
+const googleProvider = new GoogleAuthProvider(); 
+const db = getFirestore(app); // Initialize Firestore
 
-export { app, auth, googleProvider, signInWithPopup /*, db */ }; // Exported googleProvider and signInWithPopup
+export { app, auth, googleProvider, signInWithPopup, db }; // Export db

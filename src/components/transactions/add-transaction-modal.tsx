@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,12 +11,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, Brain } from "lucide-react";
 import { format } from "date-fns";
-import { Transaction } from '@/lib/types';
-import { categorizeTransaction, CategorizeTransactionOutput } from '@/ai/flows/smart-transaction-categorization'; // AI Flow
+import type { Transaction } from '@/lib/types'; // Ensure this is `type { Transaction }`
+import { categorizeTransaction, CategorizeTransactionOutput } from '@/ai/flows/smart-transaction-categorization';
 import { useToast } from '@/hooks/use-toast';
 
 interface AddTransactionModalProps {
-  onAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
+  onAddTransaction: (transaction: Omit<Transaction, 'id' | 'userId'>) => void;
+  onUpdateTransaction?: (transaction: Transaction) => void; // For editing
+  editingTransaction?: Transaction | null; // For pre-filling form
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
@@ -23,15 +26,54 @@ interface AddTransactionModalProps {
 
 const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Salary", "Freelance", "Rent", "Healthcare", "Shopping", "Other"];
 
-export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, trigger }: AddTransactionModalProps) {
+export function AddTransactionModal({ 
+  onAddTransaction, 
+  onUpdateTransaction,
+  editingTransaction,
+  isOpen, 
+  onOpenChange, 
+  trigger 
+}: AddTransactionModalProps) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
-  const [newCategory, setNewCategory] = useState(''); // For custom category
+  const [newCategory, setNewCategory] = useState('');
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [isCategorizing, setIsCategorizing] = useState(false);
   const { toast } = useToast();
+
+  const isEditMode = !!editingTransaction;
+
+  useEffect(() => {
+    if (isEditMode && editingTransaction && isOpen) {
+      setDescription(editingTransaction.description);
+      setAmount(String(Math.abs(editingTransaction.amount)));
+      
+      const isCommon = commonCategories.includes(editingTransaction.category);
+      if (isCommon) {
+        setCategory(editingTransaction.category);
+        setNewCategory('');
+      } else {
+        setCategory('Other');
+        setNewCategory(editingTransaction.category);
+      }
+      
+      setType(editingTransaction.type);
+      setDate(new Date(editingTransaction.date));
+    } else if (!isOpen) { // Reset form when modal is closed and not in edit mode (or edit is finished)
+      resetForm();
+    }
+  }, [editingTransaction, isOpen, isEditMode]);
+
+  const resetForm = () => {
+    setDescription('');
+    setAmount('');
+    setCategory('');
+    setNewCategory('');
+    setType('expense');
+    setDate(new Date());
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,22 +87,27 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
        return;
     }
 
-    onAddTransaction({
+    const transactionData = {
       date: date.toISOString(),
       description,
       category: finalCategory,
       amount: type === 'income' ? parseFloat(amount) : -parseFloat(amount),
       type,
-    });
-    // Reset form
-    setDescription('');
-    setAmount('');
-    setCategory('');
-    setNewCategory('');
-    setType('expense');
-    setDate(new Date());
-    if(onOpenChange) onOpenChange(false);
-    toast({ title: "Transaction Added", description: "Your transaction has been successfully added." });
+    };
+
+    if (isEditMode && onUpdateTransaction && editingTransaction) {
+      onUpdateTransaction({
+        ...transactionData,
+        id: editingTransaction.id,
+        userId: editingTransaction.userId, // Pass along userId
+      });
+    } else {
+      onAddTransaction(transactionData as Omit<Transaction, 'id' | 'userId'>);
+    }
+    
+    // Reset form happens in useEffect based on isOpen, or can be explicit here if onOpenChange(false) is called by parent
+    if(onOpenChange) onOpenChange(false); // Parent will handle resetting editingTransaction
+    // toast is handled by parent for success
   };
 
   const handleAICategorize = async () => {
@@ -74,7 +121,15 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
         transactionDescription: description,
         transactionAmount: parseFloat(amount),
       });
-      setCategory(result.category); // Or suggest if not in commonCategories
+      
+      const isCommon = commonCategories.includes(result.category);
+      if (isCommon) {
+        setCategory(result.category);
+        setNewCategory('');
+      } else {
+        setCategory('Other');
+        setNewCategory(result.category);
+      }
       toast({ title: "AI Categorization", description: `Suggested category: ${result.category} (Confidence: ${(result.confidence * 100).toFixed(0)}%)` });
     } catch (error) {
       console.error("AI Categorization failed:", error);
@@ -110,7 +165,7 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
       <div>
         <Label htmlFor="category">Category</Label>
         <div className="flex gap-2">
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={(val) => { setCategory(val); if (val !== 'Other') setNewCategory(''); }}>
             <SelectTrigger id="category" className="flex-grow">
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
@@ -129,6 +184,7 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
             value={newCategory} 
             onChange={(e) => setNewCategory(e.target.value)} 
             className="mt-2"
+            required={category === 'Other'}
           />
         )}
       </div>
@@ -156,7 +212,7 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
         </Popover>
       </div>
       <DialogFooter>
-        <Button type="submit">Add Transaction</Button>
+        <Button type="submit">{isEditMode ? "Update Transaction" : "Add Transaction"}</Button>
       </DialogFooter>
     </form>
   );
@@ -167,8 +223,10 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
         <DialogTrigger asChild>{trigger}</DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New Transaction</DialogTitle>
-            <DialogDescription>Fill in the details of your transaction.</DialogDescription>
+            <DialogTitle>{isEditMode ? "Edit Transaction" : "Add New Transaction"}</DialogTitle>
+            <DialogDescription>
+              {isEditMode ? "Update the details of your transaction." : "Fill in the details of your transaction."}
+            </DialogDescription>
           </DialogHeader>
           {dialogContent}
         </DialogContent>
@@ -176,14 +234,17 @@ export function AddTransactionModal({ onAddTransaction, isOpen, onOpenChange, tr
     );
   }
 
+  // This direct usage might be less common now that trigger is preferred
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Edit Transaction</DialogTitle> {/* This would be dynamic if used for editing */}
-          <DialogDescription>Update the details of your transaction.</DialogDescription>
+          <DialogTitle>{isEditMode ? "Edit Transaction" : "Add New Transaction"}</DialogTitle>
+          <DialogDescription>
+             {isEditMode ? "Update the details of your transaction." : "Fill in the details of your transaction."}
+          </DialogDescription>
         </DialogHeader>
-        {dialogContent} {/* This part should be pre-filled if editing */}
+        {dialogContent}
       </DialogContent>
     </Dialog>
   );
