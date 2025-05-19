@@ -35,7 +35,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [allocatedAmount, setAllocatedAmount] = useState('');
-  const [spentAmount, setSpentAmount] = useState('0'); // Default to 0 for new, will be set in edit
+  const [spentAmount, setSpentAmount] = useState('0');
   const [period, setPeriod] = useState<Budget['period']>('Monthly');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
@@ -122,7 +122,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       return;
     }
 
-    const budgetPayloadBase: Omit<Budget, 'id' | 'userId' | 'spentAmount' | 'startDate' | 'endDate' | 'dueDateDay'> = {
+    let budgetPayload: Partial<Budget> = {
         name,
         category: finalCategory,
         allocatedAmount: parsedAllocatedAmount,
@@ -130,13 +130,11 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         isRecurringBill: isRecurringBill,
     };
     
-    let budgetPayload: Partial<Budget> = {...budgetPayloadBase};
-
-
     if (isEditMode) {
         budgetPayload.spentAmount = parsedSpentAmount;
     }
 
+    // Only add startDate/endDate if period is 'Custom' AND the date is defined
     if (period === 'Custom' && startDate) {
         budgetPayload.startDate = startDate.toISOString();
     }
@@ -148,13 +146,12 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         budgetPayload.dueDateDay = dueDateDay;
     }
 
-
     if (isEditMode && onUpdateBudget && editingBudget) {
       onUpdateBudget({ 
         ...editingBudget, 
         ...budgetPayload,
-        spentAmount: parsedSpentAmount // Ensure spentAmount is correctly passed for update
-      } as Budget); // Cast to Budget to satisfy onUpdateBudget
+        spentAmount: parsedSpentAmount 
+      } as Budget); 
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
       const { spentAmount: payloadSpentAmountForAdd, ...restOfPayloadForAdd } = budgetPayload;
@@ -187,8 +184,8 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     setIsSuggesting(false);
   };
   
-  const formContent = ( // This is the content that will scroll
-    <div className="space-y-4 p-6"> {/* Padding applied to the scrollable content */}
+  const formContent = ( 
+    <div className="space-y-4 p-6"> {/* Content padding handled here */}
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
         <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
@@ -230,7 +227,6 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
             </SelectContent>
           </Select>
         </div>
-
 
       {period === 'Custom' && (
         <div className="grid grid-cols-2 gap-4">
@@ -310,13 +306,12 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     </div>
   );
 
-
   const wrappedDialogContent = (
-    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0"> {/* Key: flex-1, min-h-0 */}
-      <ScrollArea className="flex-1 min-h-0"> {/* Key: flex-1, min-h-0 */}
-        {formContent}
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0"> {/* Parent allows child to take space and manages overflow for flex */}
+      <ScrollArea className="flex-1"> {/* ScrollArea takes available space */}
+        {formContent} {/* formContent is the scrollable content with its own padding */}
       </ScrollArea>
-      <DialogFooter className="p-6 pt-4 border-t flex-shrink-0"> {/* Footer outside scroll, padding handled by DialogFooter itself */}
+      <DialogFooter className="p-6 pt-4 border-t flex-shrink-0"> {/* Footer is fixed */}
         <Button type="submit">{isEditMode ? "Update Budget" : "Create Budget"}</Button>
       </DialogFooter>
     </form>
@@ -326,14 +321,14 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>{trigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0"> {/* p-0 is important */}
-          <DialogHeader className="p-6 pb-4 border-b"> {/* Header handles its own padding */}
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
             </DialogDescription>
           </DialogHeader>
-          {wrappedDialogContent} {/* Form fills remaining space */}
+          {wrappedDialogContent}
         </DialogContent>
       </Dialog>
     );
@@ -353,4 +348,3 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     </Dialog>
   );
 }
-
