@@ -10,7 +10,7 @@ import { CreateBudgetModal } from '@/components/budgets/create-budget-modal';
 import type { Budget } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc, Timestamp, deleteField } from "firebase/firestore";
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function BudgetsPage() {
@@ -50,7 +50,7 @@ export default function BudgetsPage() {
           name: data.name,
           category: data.category,
           allocatedAmount: data.allocatedAmount,
-          spentAmount: data.spentAmount, // Assuming spentAmount is tracked and updated elsewhere
+          spentAmount: data.spentAmount || 0, 
           period: data.period,
           startDate: data.startDate ? (data.startDate as Timestamp).toDate().toISOString() : undefined,
           endDate: data.endDate ? (data.endDate as Timestamp).toDate().toISOString() : undefined,
@@ -73,13 +73,19 @@ export default function BudgetsPage() {
       return;
     }
     try {
-      const budgetToSave = {
-        ...newBudgetData,
+      const budgetToSave: any = {
+        ...newBudgetData, // name, category, allocatedAmount, period
         userId: currentUser.uid,
-        spentAmount: 0, // New budgets start with 0 spent
-        startDate: newBudgetData.startDate ? Timestamp.fromDate(new Date(newBudgetData.startDate)) : undefined,
-        endDate: newBudgetData.endDate ? Timestamp.fromDate(new Date(newBudgetData.endDate)) : undefined,
+        spentAmount: 0,
       };
+
+      if (newBudgetData.startDate) {
+        budgetToSave.startDate = Timestamp.fromDate(new Date(newBudgetData.startDate));
+      }
+      if (newBudgetData.endDate) {
+        budgetToSave.endDate = Timestamp.fromDate(new Date(newBudgetData.endDate));
+      }
+      
       await addDoc(collection(db, "budgets"), budgetToSave);
       toast({ title: "Budget Created", description: `Budget "${newBudgetData.name}" has been created.` });
       setIsModalOpen(false);
@@ -100,13 +106,22 @@ export default function BudgetsPage() {
     if (!currentUser || !updatedBudget.id) return;
     try {
       const budgetRef = doc(db, "budgets", updatedBudget.id);
-      const dataToUpdate = {
-        ...updatedBudget,
-        startDate: updatedBudget.startDate ? Timestamp.fromDate(new Date(updatedBudget.startDate)) : undefined,
-        endDate: updatedBudget.endDate ? Timestamp.fromDate(new Date(updatedBudget.endDate)) : undefined,
+      const dataToUpdate: any = {
+        name: updatedBudget.name,
+        category: updatedBudget.category,
+        allocatedAmount: updatedBudget.allocatedAmount,
+        spentAmount: updatedBudget.spentAmount, // Assuming this can be updated
+        period: updatedBudget.period,
+        // userId is not updated
       };
-      // delete (dataToUpdate as any).id;
-      // delete (dataToUpdate as any).userId;
+
+      if (updatedBudget.hasOwnProperty('startDate')) {
+        dataToUpdate.startDate = updatedBudget.startDate ? Timestamp.fromDate(new Date(updatedBudget.startDate)) : deleteField();
+      }
+      if (updatedBudget.hasOwnProperty('endDate')) {
+         dataToUpdate.endDate = updatedBudget.endDate ? Timestamp.fromDate(new Date(updatedBudget.endDate)) : deleteField();
+      }
+      
       await updateDoc(budgetRef, dataToUpdate);
       toast({ title: "Budget Updated", description: "Budget has been updated." });
       setIsModalOpen(false);
