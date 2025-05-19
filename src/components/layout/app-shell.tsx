@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -60,7 +61,7 @@ function AppSidebar() {
   const { open, state } = useSidebar(); // state can be "expanded" or "collapsed"
 
   return (
-    <Sidebar collapsible="icon" variant="sidebar" side="left" defaultOpen={true}>
+    <Sidebar collapsible="icon" variant="sidebar" side="left">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <div className={`flex items-center gap-2 ${state === 'collapsed' ? 'justify-center' : ''}`}>
             <Logo size={state === 'collapsed' ? "sm" : "md"}/>
