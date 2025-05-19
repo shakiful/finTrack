@@ -21,14 +21,14 @@ export default function TransactionsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (!user) {
         setTransactions([]);
         setIsLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function TransactionsPage() {
       orderBy("date", "desc") // Order by date descending
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
       const transactionsData: Transaction[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
@@ -66,8 +66,8 @@ export default function TransactionsPage() {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [currentUser, toast]);
+    return () => unsubscribeSnapshot();
+  }, [currentUser]); // Removed toast from dependencies
 
   const handleAddTransaction = async (newTransactionData: Omit<Transaction, 'id' | 'userId'>) => {
     if (!currentUser) {
@@ -96,19 +96,21 @@ export default function TransactionsPage() {
 
   const handleUpdateTransaction = async (updatedTransaction: Transaction) => {
     if (!currentUser || !updatedTransaction.id) {
-      toast({ title: "Error", description: "Could not update transaction.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not update transaction. Missing user or transaction ID.", variant: "destructive" });
       return;
     }
     try {
       const transactionRef = doc(db, "transactions", updatedTransaction.id);
-      const dataToUpdate = {
-        ...updatedTransaction,
+      
+      // Prepare data for Firestore, excluding id and userId from the direct update payload
+      const { id, userId, ...dataFieldsToUpdate } = updatedTransaction;
+      const dataToSave = {
+        ...dataFieldsToUpdate,
         date: Timestamp.fromDate(new Date(updatedTransaction.date)),
+        // userId is not updated as it defines ownership
       };
-      // delete (dataToUpdate as any).id; // Firestore update data should not contain id
-      // delete (dataToUpdate as any).userId; // userId should not be changed during update ideally
 
-      await updateDoc(transactionRef, dataToUpdate);
+      await updateDoc(transactionRef, dataToSave);
       toast({ title: "Transaction Updated", description: "Your transaction has been successfully updated." });
       setIsModalOpen(false);
       setEditingTransaction(null);
@@ -134,15 +136,14 @@ export default function TransactionsPage() {
     if (!open) {
       setEditingTransaction(null); // Reset editing state when modal closes
     }
-  }
+  };
 
-  if (isLoading && !currentUser) { // Show loading only if user state is not yet determined
+  if (isLoading && !currentUser) { 
     return <div className="flex justify-center items-center h-64">Loading user data...</div>;
   }
   if (!currentUser && !isLoading) {
      return <div className="flex justify-center items-center h-64">Please log in to view transactions.</div>;
   }
-
 
   return (
     <div className="space-y-6">

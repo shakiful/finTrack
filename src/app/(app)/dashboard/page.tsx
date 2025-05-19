@@ -16,12 +16,12 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart } from 'recharts';
-import type { Transaction, Goal } from '@/lib/types'; // Updated import
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart as RechartsPieChart } from 'recharts'; // Renamed PieChart to avoid conflict
+import type { Transaction, Goal } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
-import { auth, db } from '@/lib/firebase'; // Firebase
-import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from "firebase/firestore"; // Firebase
-import { onAuthStateChanged, User } from 'firebase/auth'; // Firebase
+import { auth, db } from '@/lib/firebase'; 
+import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from "firebase/firestore"; 
+import { onAuthStateChanged, User } from 'firebase/auth'; 
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 
@@ -48,18 +48,16 @@ const SummaryWidget = ({ title, value, icon, trend, trendValue, isLoading }: { t
 export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true); // Renamed to avoid conflict
 
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [financialGoals, setFinancialGoals] = useState<Goal[]>([]);
   
-  // State for dashboard summaries - these will be calculated
   const [currentBalance, setCurrentBalance] = useState(0);
   const [mtdIncome, setMtdIncome] = useState(0);
   const [mtdExpenses, setMtdExpenses] = useState(0);
-  const [savingsProgress, setSavingsProgress] = useState(0); // percentage
+  const [savingsProgress, setSavingsProgress] = useState(0); 
 
-  // Chart data states
   const [incomeExpenseChartData, setIncomeExpenseChartData] = useState<any[]>([]);
   const [spendingData, setSpendingData] = useState<any[]>([]);
 
@@ -67,10 +65,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      setMounted(true); // Indicate client-side mount after auth state is known
+      setMounted(true); 
       if (!user) {
-        setIsLoading(false);
-        // Reset all data if user logs out
+        setIsLoadingDashboard(false);
         setRecentTransactions([]);
         setFinancialGoals([]);
         setCurrentBalance(0);
@@ -84,19 +81,18 @@ export default function DashboardPage() {
     return () => unsubscribeAuth();
   }, []);
 
-  // Fetch transactions for dashboard
   useEffect(() => {
     if (!currentUser) return;
-    setIsLoading(true);
+    setIsLoadingDashboard(true);
 
     const now = new Date();
     const currentMonthStart = startOfMonth(now);
-    const sixMonthsAgo = startOfMonth(subMonths(now, 5)); // For 6 months of data including current
+    const sixMonthsAgo = startOfMonth(subMonths(now, 5)); 
 
     const transactionsQuery = query(
       collection(db, "transactions"),
       where("userId", "==", currentUser.uid),
-      where("date", ">=", Timestamp.fromDate(sixMonthsAgo)), // Fetch last 6 months for charts/MTD
+      where("date", ">=", Timestamp.fromDate(sixMonthsAgo)), 
       orderBy("date", "desc")
     );
 
@@ -113,30 +109,25 @@ export default function DashboardPage() {
       
       setRecentTransactions(allFetchedTransactions.slice(0, 5));
 
-      // Calculate MTD Income/Expenses and Current Balance
       let newMtdIncome = 0;
       let newMtdExpenses = 0;
-      let newCurrentBalance = 0; // This might need a starting point or be calculated from all transactions ever
+      let newCurrentBalance = 0; 
 
       const monthlyIncome: Record<string, number> = {};
       const monthlyExpenses: Record<string, number> = {};
       const categorySpending: Record<string, number> = {};
 
-
       allFetchedTransactions.forEach(tx => {
         const txDate = new Date(tx.date);
-        // For current balance, sum all
         if (tx.type === 'income') newCurrentBalance += tx.amount;
         else newCurrentBalance -= Math.abs(tx.amount);
 
-        // MTD calculations
         if (txDate >= currentMonthStart && txDate <= endOfMonth(now)) {
           if (tx.type === 'income') newMtdIncome += tx.amount;
           else newMtdExpenses += Math.abs(tx.amount);
         }
 
-        // For Income/Expense Chart (last 6 months)
-        const monthKey = format(txDate, "MMM"); // "Jan", "Feb"
+        const monthKey = format(txDate, "MMM"); 
         if (txDate >= sixMonthsAgo){
             if (tx.type === 'income') {
                 monthlyIncome[monthKey] = (monthlyIncome[monthKey] || 0) + tx.amount;
@@ -144,7 +135,6 @@ export default function DashboardPage() {
                 monthlyExpenses[monthKey] = (monthlyExpenses[monthKey] || 0) + Math.abs(tx.amount);
             }
         }
-         // For Spending by Category Chart (current month)
         if (tx.type === 'expense' && txDate >= currentMonthStart && txDate <= endOfMonth(now)) {
             categorySpending[tx.category] = (categorySpending[tx.category] || 0) + Math.abs(tx.amount);
         }
@@ -152,9 +142,8 @@ export default function DashboardPage() {
 
       setMtdIncome(newMtdIncome);
       setMtdExpenses(newMtdExpenses);
-      setCurrentBalance(newCurrentBalance); // Note: This is a running balance of fetched transactions.
+      setCurrentBalance(newCurrentBalance); 
 
-      // Prepare income/expense chart data
       const chartMonths = Array.from({length: 6}, (_, i) => format(subMonths(now, 5 - i), "MMM"));
       const newIncomeExpenseData = chartMonths.map(month => ({
         month,
@@ -163,32 +152,29 @@ export default function DashboardPage() {
       }));
       setIncomeExpenseChartData(newIncomeExpenseData);
 
-      // Prepare spending by category data
       const colors = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
       const newSpendingData = Object.entries(categorySpending)
         .map(([name, value], index) => ({ name, value, fill: colors[index % colors.length] }))
-        .sort((a,b) => b.value - a.value) // Sort for pie chart display
-        .slice(0,5); // Show top 5 categories, or adjust as needed
+        .sort((a,b) => b.value - a.value) 
+        .slice(0,5); 
       setSpendingData(newSpendingData);
 
-
-      setIsLoading(false);
+      setIsLoadingDashboard(false);
     }, (error) => {
       console.error("Error fetching transactions for dashboard:", error);
-      setIsLoading(false);
+      setIsLoadingDashboard(false);
     });
 
     return () => unsubscribeTransactions();
   }, [currentUser]);
 
-  // Fetch goals for dashboard
   useEffect(() => {
     if (!currentUser) return;
     
     const goalsQuery = query(
       collection(db, "goals"),
       where("userId", "==", currentUser.uid),
-      limit(3) // Limit to 3 for dashboard display
+      limit(3) 
     );
 
     const unsubscribeGoals = onSnapshot(goalsQuery, (snapshot) => {
@@ -223,12 +209,11 @@ const incomeExpenseChartConfig = {
 } satisfies ChartConfig;
 
 const spendingByCategoryChartConfig = {
-  // Dynamically generate this based on spendingData keys if needed, or predefine common ones
-  // For simplicity, this will be used by ChartContainer but legend/tooltip will use data keys
+  // Dynamically filled by data
 } satisfies ChartConfig;
 
 
-  if (!mounted) { // Wait for client-side mount to avoid hydration issues with auth
+  if (!mounted) { 
     return (
         <div className="space-y-6">
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
@@ -252,11 +237,11 @@ const spendingByCategoryChartConfig = {
     );
   }
 
-  if (isLoading && currentUser) {
+  if (isLoadingDashboard && currentUser) {
      return <div className="text-center py-10">Loading dashboard data...</div>
   }
   
-  if (!currentUser && !isLoading) {
+  if (!currentUser && !isLoadingDashboard) {
      return <div className="text-center py-10">Please log in to view your dashboard.</div>
   }
 
@@ -274,17 +259,17 @@ const spendingByCategoryChartConfig = {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryWidget title="Current Balance" value={`$${currentBalance.toFixed(2)}`} icon={<DollarSign className="w-5 h-5 text-muted-foreground" />} isLoading={isLoading} />
-        <SummaryWidget title="Income (MTD)" value={`$${mtdIncome.toFixed(2)}`} icon={<Banknote className="w-5 h-5 text-muted-foreground" />} trend="up" trendValue="" isLoading={isLoading} />
-        <SummaryWidget title="Expenses (MTD)" value={`$${mtdExpenses.toFixed(2)}`} icon={<HandCoins className="w-5 h-5 text-muted-foreground" />} trend="down" trendValue="" isLoading={isLoading} />
+        <SummaryWidget title="Current Balance" value={`$${currentBalance.toFixed(2)}`} icon={<DollarSign className="w-5 h-5 text-muted-foreground" />} isLoading={isLoadingDashboard} />
+        <SummaryWidget title="Income (MTD)" value={`$${mtdIncome.toFixed(2)}`} icon={<Banknote className="w-5 h-5 text-muted-foreground" />} trend="up" trendValue="" isLoading={isLoadingDashboard} />
+        <SummaryWidget title="Expenses (MTD)" value={`$${mtdExpenses.toFixed(2)}`} icon={<HandCoins className="w-5 h-5 text-muted-foreground" />} trend="down" trendValue="" isLoading={isLoadingDashboard} />
         <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                 <CardTitle className="text-sm font-medium">Savings Progress</CardTitle>
                 <Target className="w-5 h-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                {isLoading ? <Skeleton className="w-1/2 h-8 mt-1"/> : <div className="text-2xl font-bold">{savingsProgress}%</div> }
-                {isLoading ? <Skeleton className="w-full h-2 mt-2"/> : <Progress value={savingsProgress} className="w-full mt-2 h-2" /> }
+                {isLoadingDashboard ? <Skeleton className="w-1/2 h-8 mt-1"/> : <div className="text-2xl font-bold">{savingsProgress}%</div> }
+                {isLoadingDashboard ? <Skeleton className="w-full h-2 mt-2"/> : <Progress value={savingsProgress} className="w-full mt-2 h-2" /> }
             </CardContent>
         </Card>
       </div>
@@ -296,7 +281,7 @@ const spendingByCategoryChartConfig = {
             <CardDescription>Monthly overview for the last 6 months.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] lg:h-[350px]">
-            {isLoading ? <Skeleton className="w-full h-full" /> : (
+            {isLoadingDashboard ? <Skeleton className="w-full h-full" /> : (
              <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={incomeExpenseChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
@@ -319,10 +304,10 @@ const spendingByCategoryChartConfig = {
             <CardDescription>Current month's spending breakdown.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] lg:h-[350px] flex items-center justify-center">
-            {isLoading ? <Skeleton className="w-full h-full" /> : (
+            {isLoadingDashboard ? <Skeleton className="w-full h-full" /> : (
             <ChartContainer config={spendingByCategoryChartConfig} className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <RechartsPieChart>
                       <Pie data={spendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} 
                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
                               const RADIAN = Math.PI / 180;
@@ -342,7 +327,7 @@ const spendingByCategoryChartConfig = {
                       </Pie>
                       <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                       <Legend content={<ChartLegendContent nameKey="name"/>}/>
-                  </PieChart>
+                  </RechartsPieChart>
               </ResponsiveContainer>
             </ChartContainer>
             )}
@@ -357,7 +342,7 @@ const spendingByCategoryChartConfig = {
             <Link href="/transactions" className="text-sm text-primary hover:underline">View All</Link>
           </CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="w-full h-40" /> : (
+            {isLoadingDashboard ? <Skeleton className="w-full h-40" /> : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -410,6 +395,8 @@ const spendingByCategoryChartConfig = {
                 <p className="ml-auto font-semibold">${bill.amount.toFixed(2)}</p>
               </div>
             ))}
+            {/* Add a note here if you want to inform users it's a future feature */}
+            <p className="text-xs text-center text-muted-foreground pt-2">Dynamic bill tracking coming soon!</p>
           </CardContent>
         </Card>
       </div>
@@ -420,7 +407,7 @@ const spendingByCategoryChartConfig = {
           <Link href="/goals" className="text-sm text-primary hover:underline">Manage Goals</Link>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {isLoading ? Array.from({length:3}).map((_,i) => <Skeleton key={i} className="w-full h-40 rounded-lg"/>) : 
+          {isLoadingDashboard ? Array.from({length:3}).map((_,i) => <Skeleton key={i} className="w-full h-40 rounded-lg"/>) : 
             financialGoals.length > 0 ? (
             financialGoals.map(goal => (
               <Card key={goal.id} className="hover:shadow-md transition-shadow">
