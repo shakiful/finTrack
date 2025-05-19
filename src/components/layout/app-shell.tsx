@@ -3,7 +3,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation'; // Added useRouter
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -15,7 +15,7 @@ import {
   LifeBuoy,
   Bot,
   ChevronDown,
-  ChevronRight
+  // ChevronRight // This icon was imported but not used, removed for cleanliness
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -26,9 +26,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
+  // SidebarMenuSub, // These were imported but not used
+  // SidebarMenuSubItem,
+  // SidebarMenuSubButton,
   SidebarInset,
   SidebarTrigger,
   useSidebar,
@@ -46,6 +46,9 @@ import {
 import { Logo } from '@/components/logo';
 import { ModeToggle } from '@/components/mode-toggle';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { auth } from "@/lib/firebase"; // Import Firebase auth
+import { signOut } from "firebase/auth"; // Import signOut
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -58,7 +61,20 @@ const navItems = [
 
 function AppSidebar() {
   const pathname = usePathname();
-  const { open, state } = useSidebar(); // state can be "expanded" or "collapsed"
+  const router = useRouter(); // Initialize router
+  const { toast } = useToast(); // Initialize toast
+  const { state } = useSidebar(); // state can be "expanded" or "collapsed"
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+      router.push('/auth/login');
+    } catch (error) {
+      console.error("Logout Error:", error);
+      toast({ title: "Logout Failed", description: "Could not log out. Please try again.", variant: "destructive" });
+    }
+  };
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" side="left">
@@ -92,29 +108,33 @@ function AppSidebar() {
             <Button variant="ghost" className={`w-full justify-start gap-2 ${state === 'collapsed' ? 'px-2' : 'px-3'}`}>
               <Avatar className="w-8 h-8">
                 <AvatarImage src="https://placehold.co/40x40.png" alt="User" data-ai-hint="user avatar" />
-                <AvatarFallback>U</AvatarFallback>
+                <AvatarFallback>{auth.currentUser?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
               </Avatar>
-              {state === 'expanded' && <span className="truncate">User Name</span>}
+              {state === 'expanded' && <span className="truncate">{auth.currentUser?.displayName || auth.currentUser?.email || 'User Name'}</span>}
               {state === 'expanded' && <ChevronDown className="w-4 h-4 ml-auto" />}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-56">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <UserCircle className="w-4 h-4 mr-2" />
-              Profile
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <UserCircle className="w-4 h-4 mr-2" />
+                Profile
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
+             <DropdownMenuItem asChild>
+               <Link href="/settings">
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <LifeBuoy className="w-4 h-4 mr-2" />
+            {/* <DropdownMenuItem>
+              <LifeBuoy className="w-4 h-4 mr-2" /> 
               Support
-            </DropdownMenuItem>
+            </DropdownMenuItem> */}
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Log out
             </DropdownMenuItem>
@@ -145,6 +165,31 @@ function AppHeader({ title }: { title: string }) {
 
 
 export function AppShell({ children, pageTitle }: { children: React.ReactNode, pageTitle: string }) {
+  // Attempt to get user information for display
+  // Note: This is a basic way. For real-time updates & proper state management, a context/global state is better.
+  const [currentUserEmail, setCurrentUserEmail] = React.useState<string | null | undefined>(undefined);
+  const [currentUserDisplayName, setCurrentUserDisplayName] = React.useState<string | null | undefined>(undefined);
+
+  React.useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        setCurrentUserEmail(user.email);
+        setCurrentUserDisplayName(user.displayName);
+      } else {
+        setCurrentUserEmail(null);
+        setCurrentUserDisplayName(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+
+  // Dynamically update AvatarFallback and display name in AppSidebar based on auth state
+  // This is a simplified approach. Ideally, user state would be managed in a context.
+  // The AppSidebar itself could also subscribe to auth.onAuthStateChanged for a cleaner update.
+  // For now, the existing logic in AppSidebar's DropdownMenuTrigger for AvatarFallback and name will pick up auth.currentUser
+
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen">
