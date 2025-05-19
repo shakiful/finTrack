@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, ListChecks, BadgeDollarSign, HandCoins, Banknote } from "lucide-react";
+import { BarChart, LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, ListChecks, BadgeDollarSign, HandCoins, Banknote, Target } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -236,3 +236,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
