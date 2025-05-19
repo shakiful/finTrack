@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,52 +11,88 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { Goal } from '@/lib/types';
+import type { Goal } from '@/lib/types'; // Ensure this is `type { Goal }`
 import { useToast } from '@/hooks/use-toast';
 
 interface SetGoalModalProps {
   onAddGoal: (goal: Omit<Goal, 'id' | 'currentAmount'>) => void;
+  onUpdateGoal?: (goal: Goal) => void; // For editing
+  editingGoal?: Goal | null; // For pre-filling form
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
-  // To adapt for editing later:
-  // initialData?: Omit<Goal, 'id'>; 
 }
 
-export function SetGoalModal({ onAddGoal, isOpen, onOpenChange, trigger }: SetGoalModalProps) {
+export function SetGoalModal({ 
+    onAddGoal, 
+    onUpdateGoal, 
+    editingGoal, 
+    isOpen, 
+    onOpenChange, 
+    trigger 
+}: SetGoalModalProps) {
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [targetDate, setTargetDate] = useState<Date | undefined>();
   const [description, setDescription] = useState('');
-  const [initialSaving, setInitialSaving] = useState(''); // For conceptual "current savings" input
+  // const [initialSaving, setInitialSaving] = useState(''); // Not used for currentAmount directly here.
   const { toast } = useToast();
   
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !targetAmount) {
-      toast({ title: "Missing Fields", description: "Goal Name and Target Amount are required.", variant: "destructive" });
-      return;
+  const isEditMode = !!editingGoal;
+
+  useEffect(() => {
+    if (isEditMode && editingGoal && isOpen) {
+      setName(editingGoal.name);
+      setTargetAmount(String(editingGoal.targetAmount));
+      setTargetDate(editingGoal.targetDate ? new Date(editingGoal.targetDate) : undefined);
+      setDescription(editingGoal.description || '');
+      // setInitialSaving(String(editingGoal.currentAmount)); // If modal handles currentAmount directly
+    } else if (!isOpen) { // Reset form when modal is closed
+      resetForm();
     }
+  }, [editingGoal, isOpen, isEditMode]);
 
-    const goalData: Omit<Goal, 'id' | 'currentAmount'> = {
-      name,
-      targetAmount: parseFloat(targetAmount),
-      targetDate: targetDate?.toISOString(),
-      description,
-    };
-    // In a real app, initialSaving would be part of Goal and set here
-    // For this structure, onAddGoal only takes Omit<Goal, 'id' | 'currentAmount'>
-    // We'll assume currentAmount starts at 0 unless initialData is provided for editing.
-
-    onAddGoal(goalData);
-    // Reset form
+  const resetForm = () => {
     setName('');
     setTargetAmount('');
     setTargetDate(undefined);
     setDescription('');
-    setInitialSaving('');
+    // setInitialSaving('');
+  };
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || targetAmount.trim() === '') {
+      toast({ title: "Missing Fields", description: "Goal Name and Target Amount are required.", variant: "destructive" });
+      return;
+    }
+
+    const parsedTargetAmount = parseFloat(targetAmount);
+    if (isNaN(parsedTargetAmount) || parsedTargetAmount <= 0) {
+      toast({ title: "Invalid Amount", description: "Target Amount must be a valid positive number.", variant: "destructive" });
+      return;
+    }
+
+    const goalData: Omit<Goal, 'id' | 'currentAmount' | 'userId'> = { // userId is added by parent
+      name: name.trim(),
+      targetAmount: parsedTargetAmount,
+      targetDate: targetDate?.toISOString(), // Will be undefined if targetDate is not set
+      description: description.trim() || undefined, // Send undefined if empty so parent can omit
+    };
+
+    if (isEditMode && onUpdateGoal && editingGoal) {
+        onUpdateGoal({
+            ...editingGoal, // includes id, userId, currentAmount
+            ...goalData, // overrides with new name, targetAmount, targetDate, description
+        });
+         toast({ title: "Goal Updated", description: `Your goal "${goalData.name}" has been updated.` });
+    } else {
+        onAddGoal(goalData as Omit<Goal, 'id' | 'currentAmount' | 'userId'>); // Cast needed as onAddGoal expects slightly different type
+        toast({ title: "Goal Set", description: `Your goal "${goalData.name}" has been set.` });
+    }
+    
+    // resetForm(); // Resetting is handled by useEffect on isOpen change
     if(onOpenChange) onOpenChange(false);
-    toast({ title: "Goal Set", description: `Your goal "${name}" has been set.` });
   };
 
   const dialogContent = (
@@ -64,15 +101,20 @@ export function SetGoalModal({ onAddGoal, isOpen, onOpenChange, trigger }: SetGo
         <Label htmlFor="goalName">Goal Name</Label>
         <Input id="goalName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Save for Vacation" required />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4"> {/* Adjusted for simplicity; initialSaving was conceptual */}
         <div>
           <Label htmlFor="targetAmount">Target Amount ($)</Label>
-          <Input id="targetAmount" type="number" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} required />
+          <Input id="targetAmount" type="number" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} placeholder="e.g., 1000" required />
         </div>
-        <div>
-          <Label htmlFor="initialSaving">Initial Savings ($) (Optional)</Label>
-          <Input id="initialSaving" type="number" value={initialSaving} onChange={(e) => setInitialSaving(e.target.value)} placeholder="0.00" />
-        </div>
+        {/* 
+        For editing initial/current savings, this would be part of the form:
+        {isEditMode && (
+          <div>
+            <Label htmlFor="currentAmount">Current Amount ($)</Label>
+            <Input id="currentAmount" type="number" value={initialSaving} onChange={(e) => setInitialSaving(e.target.value)} />
+          </div>
+        )}
+        */}
       </div>
       <div>
         <Label htmlFor="targetDate">Target Date (Optional)</Label>
@@ -103,19 +145,24 @@ export function SetGoalModal({ onAddGoal, isOpen, onOpenChange, trigger }: SetGo
         <Textarea id="goalDescription" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add more details about your goal" />
       </div>
       <DialogFooter>
-        <Button type="submit">Set Goal</Button>
+        <Button type="submit">{isEditMode ? "Update Goal" : "Set Goal"}</Button>
       </DialogFooter>
     </form>
   );
 
   if (trigger) {
      return (
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+          if (onOpenChange) onOpenChange(open);
+          if (!open) resetForm(); // Ensure form resets if modal is closed externally
+      }}>
         <DialogTrigger asChild>{trigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Set New Financial Goal</DialogTitle>
-            <DialogDescription>Define your financial target and plan your savings.</DialogDescription>
+            <DialogTitle>{isEditMode ? "Edit Financial Goal" : "Set New Financial Goal"}</DialogTitle>
+            <DialogDescription>
+              {isEditMode ? "Update the details of your financial goal." : "Define your financial target and plan your savings."}
+            </DialogDescription>
           </DialogHeader>
           {dialogContent}
         </DialogContent>
@@ -123,12 +170,17 @@ export function SetGoalModal({ onAddGoal, isOpen, onOpenChange, trigger }: SetGo
     );
   }
   
-  return ( // Fallback for direct modal usage
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+  return ( // Fallback for direct modal usage (less common now with trigger pattern)
+    <Dialog open={isOpen} onOpenChange={(open) => {
+        if (onOpenChange) onOpenChange(open);
+        if (!open) resetForm();
+    }}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Set/Edit Financial Goal</DialogTitle>
-          <DialogDescription>Manage your financial goal details.</DialogDescription>
+          <DialogTitle>{isEditMode ? "Edit Financial Goal" : "Set New Financial Goal"}</DialogTitle>
+          <DialogDescription>
+            {isEditMode ? "Update the details of your financial goal." : "Define your financial target and plan your savings."}
+          </DialogDescription>
         </DialogHeader>
         {dialogContent}
       </DialogContent>

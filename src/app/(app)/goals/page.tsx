@@ -13,7 +13,7 @@ import { SetGoalModal } from '@/components/goals/set-goal-modal';
 import type { Goal } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc, Timestamp, deleteField } from "firebase/firestore";
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function GoalsPage() {
@@ -76,12 +76,27 @@ export default function GoalsPage() {
       return;
     }
     try {
-      const goalToSave = {
-        ...newGoalData,
+      const goalToSave: {
+        name: string;
+        targetAmount: number;
+        userId: string;
+        currentAmount: number;
+        targetDate?: Timestamp;
+        description?: string;
+      } = {
+        name: newGoalData.name,
+        targetAmount: newGoalData.targetAmount,
         userId: currentUser.uid,
         currentAmount: 0, // New goals start with 0 saved
-        targetDate: newGoalData.targetDate ? Timestamp.fromDate(new Date(newGoalData.targetDate)) : undefined,
       };
+
+      if (newGoalData.targetDate) {
+        goalToSave.targetDate = Timestamp.fromDate(new Date(newGoalData.targetDate));
+      }
+      if (newGoalData.description) {
+        goalToSave.description = newGoalData.description;
+      }
+
       await addDoc(collection(db, "goals"), goalToSave);
       toast({ title: "Goal Set", description: `Goal "${newGoalData.name}" has been set.` });
       setIsModalOpen(false);
@@ -94,20 +109,47 @@ export default function GoalsPage() {
   const handleEditGoal = (goal: Goal) => {
     setEditingGoal(goal);
     // setIsModalOpen(true); // This would open SetGoalModal adapted for editing
-    toast({ title: "Edit Action (Conceptual)", description: `Editing goal: ${goal.name}. Full edit UI with Firestore update needs modal adaptation.`});
+    // For full edit, SetGoalModal needs to be adapted to take `editingGoal` and `onUpdateGoal`
+    toast({ title: "Edit Action (Conceptual)", description: `Editing goal: ${goal.name}. Full edit UI needs modal adaptation.`});
   };
 
   const handleUpdateGoal = async (updatedGoal: Goal) => {
     if (!currentUser || !updatedGoal.id) return;
     try {
       const goalRef = doc(db, "goals", updatedGoal.id);
-      const dataToUpdate = {
-        ...updatedGoal,
-        targetDate: updatedGoal.targetDate ? Timestamp.fromDate(new Date(updatedGoal.targetDate)) : undefined,
-      };
-      await updateDoc(goalRef, dataToUpdate);
-      toast({ title: "Goal Updated", description: "Goal has been updated." });
-      setIsModalOpen(false);
+      
+      const dataForUpdate: any = {};
+
+      if (updatedGoal.name !== undefined) dataForUpdate.name = updatedGoal.name;
+      if (updatedGoal.targetAmount !== undefined) dataForUpdate.targetAmount = updatedGoal.targetAmount;
+      if (updatedGoal.currentAmount !== undefined) dataForUpdate.currentAmount = updatedGoal.currentAmount;
+      
+      // Handle optional targetDate: update if present, delete if explicitly cleared
+      if (updatedGoal.hasOwnProperty('targetDate')) {
+        if (updatedGoal.targetDate) {
+          dataForUpdate.targetDate = Timestamp.fromDate(new Date(updatedGoal.targetDate));
+        } else {
+          dataForUpdate.targetDate = deleteField(); // Remove field if date is cleared
+        }
+      }
+
+      // Handle optional description: update if present, delete if explicitly cleared/empty
+      if (updatedGoal.hasOwnProperty('description')) {
+        if (updatedGoal.description) {
+          dataForUpdate.description = updatedGoal.description;
+        } else {
+          dataForUpdate.description = deleteField(); // Remove field if description is cleared/empty
+        }
+      }
+      
+      if (Object.keys(dataForUpdate).length > 0) {
+        await updateDoc(goalRef, dataForUpdate);
+        toast({ title: "Goal Updated", description: "Goal has been updated." });
+      } else {
+         toast({ title: "No Changes", description: "No changes were made to the goal." });
+      }
+
+      setIsModalOpen(false); // This is for the create modal, edit would need its own state or adaptation
       setEditingGoal(null);
     } catch (error) {
       console.error("Error updating goal:", error);
@@ -174,8 +216,8 @@ export default function GoalsPage() {
         </div>
         <SetGoalModal
             onAddGoal={handleAddGoal}
-            // onUpdateGoal={handleUpdateGoal} // Add if modal is adapted
-            // editingGoal={editingGoal} // Add if modal is adapted
+            // onUpdateGoal={handleUpdateGoal} // TODO: Adapt SetGoalModal for editing
+            // editingGoal={editingGoal} // TODO: Pass editingGoal to adapted modal
             isOpen={isModalOpen}
             onOpenChange={handleModalOpenChange}
             trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
@@ -189,7 +231,7 @@ export default function GoalsPage() {
             <GoalCard 
               key={goal.id} 
               goal={goal} 
-              onEdit={handleEditGoal}
+              onEdit={handleEditGoal} // This currently only sets state, modal needs to use it
               onDelete={handleDeleteGoal}
               onAddFunds={handleOpenAddFundsModal}
             />
@@ -210,7 +252,7 @@ export default function GoalsPage() {
               <CardFooter className="justify-center">
                    <SetGoalModal
                       onAddGoal={handleAddGoal}
-                      isOpen={isModalOpen} // This single modal instance might be tricky
+                      isOpen={isModalOpen} 
                       onOpenChange={handleModalOpenChange}
                       trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
                   />
