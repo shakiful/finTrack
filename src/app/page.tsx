@@ -1,6 +1,7 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, DollarSign, BarChart2, ShieldCheck, MessageCircleHeart, Brain, BarChartBig } from "lucide-react";
+import { CheckCircle, DollarSign, BarChart2, ShieldCheck, Brain, BarChartBig, ListChecks, Target, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
@@ -13,6 +14,22 @@ const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode, titl
         {icon}
       </div>
       <CardTitle className="text-xl">{title}</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <p className="text-muted-foreground">{description}</p>
+    </CardContent>
+  </Card>
+);
+
+const TipCard = ({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) => (
+  <Card className="transition-all duration-300 ease-out hover:shadow-xl animate-fadeInUp">
+    <CardHeader className="flex flex-row items-center gap-4">
+      <div className="p-3 rounded-full bg-accent/10 text-accent">
+        {icon}
+      </div>
+      <div>
+        <CardTitle className="text-lg">{title}</CardTitle>
+      </div>
     </CardHeader>
     <CardContent>
       <p className="text-muted-foreground">{description}</p>
@@ -98,25 +115,26 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials Section (Placeholder) */}
+        {/* Financial Wellness Tips Section */}
         <section className="py-16 bg-muted/50">
           <div className="container">
-            <h2 className="mb-12 text-3xl font-bold text-center md:text-4xl animate-fadeInUp" style={{animationDelay: '0.4s'}}>Loved by Users Worldwide</h2>
+            <h2 className="mb-12 text-3xl font-bold text-center md:text-4xl animate-fadeInUp" style={{animationDelay: '0.4s'}}>Tips for Financial Wellness</h2>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <Card key={i} className="transition-all duration-300 ease-out hover:shadow-xl animate-fadeInUp" style={{animationDelay: `${0.4 + i * 0.1}s`}}>
-                  <CardHeader className="flex flex-row items-center gap-4">
-                    <Image src={`https://placehold.co/40x40.png`} alt={`User ${i}`} width={40} height={40} className="rounded-full" data-ai-hint="person portrait" />
-                    <div>
-                      <CardTitle className="text-lg">User {i}</CardTitle>
-                      <p className="text-sm text-muted-foreground">Happy Customer</p>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="italic">"FinTrack Flow has transformed how I manage my money. It's so intuitive and powerful!"</p>
-                  </CardContent>
-                </Card>
-              ))}
+              <TipCard
+                icon={<ListChecks size={28} />}
+                title="Plan Your Spending"
+                description="Use our budgeting tools to allocate your income effectively and avoid overspending on non-essentials."
+              />
+              <TipCard
+                icon={<Target size={28} />}
+                title="Set Clear Goals"
+                description="Define short-term and long-term financial goals to stay motivated and focused on what truly matters to you."
+              />
+              <TipCard
+                icon={<RefreshCw size={28} />}
+                title="Review Regularly"
+                description="Consistently review your financial progress, adjust your budgets, and update your goals as your life circumstances change."
+              />
             </div>
           </div>
         </section>
