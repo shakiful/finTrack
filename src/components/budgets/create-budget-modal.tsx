@@ -9,11 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Budget } from '@/lib/types';
-import { Brain, CalendarIcon } from "lucide-react";
+import { Brain, CalendarIcon, CheckSquare, Square } from "lucide-react"; // Added CheckSquare, Square
 import { aiPoweredBudgetSuggestions, AIPoweredBudgetSuggestionsOutput } from '@/ai/flows/ai-powered-budget-suggestions';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox"; // Added Checkbox
 import { format } from "date-fns";
 
 interface CreateBudgetModalProps {
@@ -25,7 +26,7 @@ interface CreateBudgetModalProps {
   trigger?: React.ReactNode;
 }
 
-const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Other"];
+const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Subscriptions", "Insurance", "Debt Payment", "Other"];
 const budgetPeriods = ['Monthly', 'Quarterly', 'Yearly', 'Custom'];
 
 export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, isOpen, onOpenChange, trigger }: CreateBudgetModalProps) {
@@ -37,6 +38,10 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   const [period, setPeriod] = useState<Budget['period']>('Monthly');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  
+  const [isRecurringBill, setIsRecurringBill] = useState(false);
+  const [dueDateDay, setDueDateDay] = useState<number | undefined>();
+
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [userIncome, setUserIncome] = useState('');
@@ -62,19 +67,22 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         setPeriod(editingBudget.period);
         setStartDate(editingBudget.startDate ? new Date(editingBudget.startDate) : undefined);
         setEndDate(editingBudget.endDate ? new Date(editingBudget.endDate) : undefined);
-        setAiSuggestion(null); // Clear AI suggestion in edit mode
-        setUserIncome(''); // Clear AI fields in edit mode
-        setUserSpendingHabits(''); // Clear AI fields in edit mode
+        setIsRecurringBill(editingBudget.isRecurringBill || false);
+        setDueDateDay(editingBudget.dueDateDay);
+        setAiSuggestion(null); 
+        setUserIncome(''); 
+        setUserSpendingHabits('');
       } else {
-        // Reset form for "Add" mode or when modal is re-opened without editingBudget
         setName('');
         setCategory('');
         setNewCategory('');
         setAllocatedAmount('');
-        setSpentAmount('0'); // Default spent amount for new budgets
+        setSpentAmount('0'); 
         setPeriod('Monthly');
         setStartDate(undefined);
         setEndDate(undefined);
+        setIsRecurringBill(false);
+        setDueDateDay(undefined);
         setAiSuggestion(null);
         setUserIncome('');
         setUserSpendingHabits('');
@@ -108,44 +116,44 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         return;
     }
 
+    if (isRecurringBill && period === 'Monthly' && (!dueDateDay || dueDateDay < 1 || dueDateDay > 31)) {
+      toast({ title: "Invalid Due Day", description: "For monthly recurring bills, please enter a valid due day (1-31).", variant: "destructive" });
+      return;
+    }
 
-    const budgetPayload: {
-        name: string;
-        category: string;
-        allocatedAmount: number;
-        spentAmount: number; // Only relevant for update, parent sets to 0 for add
-        period: Budget['period'];
-        startDate?: string;
-        endDate?: string;
-    } = {
+
+    const budgetPayload: Omit<Budget, 'id' | 'userId'> = {
         name,
         category: finalCategory,
         allocatedAmount: parsedAllocatedAmount,
-        spentAmount: parsedSpentAmount,
+        spentAmount: parsedSpentAmount, 
         period,
+        isRecurringBill: isRecurringBill,
     };
 
     if (period === 'Custom') {
-        if (startDate) {
-            budgetPayload.startDate = startDate.toISOString();
-        }
-        if (endDate) {
-            budgetPayload.endDate = endDate.toISOString();
-        }
+        if (startDate) budgetPayload.startDate = startDate.toISOString();
+        if (endDate) budgetPayload.endDate = endDate.toISOString();
+    }
+    
+    if (isRecurringBill && period === 'Monthly' && dueDateDay) {
+        budgetPayload.dueDateDay = dueDateDay;
     }
 
 
     if (isEditMode && onUpdateBudget && editingBudget) {
       onUpdateBudget({ 
-        ...editingBudget, // provides id, userId
-        ...budgetPayload  // provides updated fields (name, category, allocatedAmount, spentAmount, period, startDate?, endDate?)
+        ...editingBudget, 
+        ...budgetPayload,
+        // Ensure spentAmount is included if it was part of editingBudget
+        spentAmount: parsedSpentAmount !== undefined ? parsedSpentAmount : editingBudget.spentAmount,
       });
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
-      // For onAddBudget, the type Omit<Budget, 'id' | 'userId' | 'spentAmount'> is expected
+      // For onAddBudget, the type Omit<Budget, 'id' | 'userId' | 'spentAmount'> is expected.
       // The parent (budgets/page.tsx) will set spentAmount to 0 for new budgets.
       const { spentAmount: payloadSpentAmount, ...restOfPayload } = budgetPayload;
-      onAddBudget(restOfPayload);
+      onAddBudget(restOfPayload as Omit<Budget, 'id' | 'userId' | 'spentAmount'>);
       toast({ title: "Budget Created", description: `Budget "${name}" has been created.` });
     }
 
@@ -178,7 +186,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
-        <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries" required />
+        <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
       </div>
       <div>
         <Label htmlFor="budgetCategory">Category</Label>
@@ -206,7 +214,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
           </div>
         )}
       </div>
-       <div> {/* Moved Period select outside the grid for better layout if only one item remains */}
+       <div>
           <Label htmlFor="budgetPeriod">Period</Label>
           <Select value={period} onValueChange={(value) => setPeriod(value as Budget['period'])}>
             <SelectTrigger id="budgetPeriod">
@@ -251,6 +259,26 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
           </div>
         </div>
       )}
+
+      <div className="space-y-2">
+        <div className="flex items-center space-x-2">
+          <Checkbox id="isRecurringBill" checked={isRecurringBill} onCheckedChange={(checked) => setIsRecurringBill(checked as boolean)} />
+          <Label htmlFor="isRecurringBill" className="font-normal">This is a recurring bill/subscription</Label>
+        </div>
+        {isRecurringBill && period === 'Monthly' && (
+          <div>
+            <Label htmlFor="dueDateDay">Due Day of Month (1-31)</Label>
+            <Input 
+              id="dueDateDay" 
+              type="number" 
+              min="1" max="31" 
+              value={dueDateDay || ''} 
+              onChange={(e) => setDueDateDay(parseInt(e.target.value, 10) || undefined)} 
+              placeholder="e.g., 15"
+            />
+          </div>
+        )}
+      </div>
       
       {!isEditMode && (
         <div className="p-4 space-y-3 border rounded-md bg-muted/30">
@@ -312,7 +340,3 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     </Dialog>
   );
 }
-
-    
-
-    

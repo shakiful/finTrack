@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins, Tv, Zap, Dumbbell } from "lucide-react";
+import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins, Tv, Zap, Dumbbell, CreditCard, Wifi, ShoppingBag, CheckCircle2, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import {
   ChartConfig,
@@ -16,13 +16,13 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart as RechartsPieChart } from 'recharts'; // Renamed PieChart to avoid conflict
-import type { Transaction, Goal } from '@/lib/types';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart as RechartsPieChart } from 'recharts';
+import type { Transaction, Goal, Budget, UpcomingBillDisplay } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
 import { auth, db } from '@/lib/firebase'; 
 import { collection, query, where, onSnapshot, Timestamp, orderBy, limit } from "firebase/firestore"; 
 import { onAuthStateChanged, User } from 'firebase/auth'; 
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, getDate, getMonth, getYear, addMonths, isPast } from 'date-fns';
 
 
 const SummaryWidget = ({ title, value, icon, trend, trendValue, isLoading }: { title: string; value: string; icon: React.ReactNode; trend?: 'up' | 'down'; trendValue?: string, isLoading?: boolean }) => (
@@ -48,10 +48,11 @@ const SummaryWidget = ({ title, value, icon, trend, trendValue, isLoading }: { t
 export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true); // Renamed to avoid conflict
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true); 
 
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [financialGoals, setFinancialGoals] = useState<Goal[]>([]);
+  const [upcomingBills, setUpcomingBills] = useState<UpcomingBillDisplay[]>([]);
   
   const [currentBalance, setCurrentBalance] = useState(0);
   const [mtdIncome, setMtdIncome] = useState(0);
@@ -70,6 +71,7 @@ export default function DashboardPage() {
         setIsLoadingDashboard(false);
         setRecentTransactions([]);
         setFinancialGoals([]);
+        setUpcomingBills([]);
         setCurrentBalance(0);
         setMtdIncome(0);
         setMtdExpenses(0);
@@ -81,6 +83,7 @@ export default function DashboardPage() {
     return () => unsubscribeAuth();
   }, []);
 
+  // Fetch Transactions and Budgets for calculations
   useEffect(() => {
     if (!currentUser) return;
     setIsLoadingDashboard(true);
@@ -92,13 +95,18 @@ export default function DashboardPage() {
     const transactionsQuery = query(
       collection(db, "transactions"),
       where("userId", "==", currentUser.uid),
-      where("date", ">=", Timestamp.fromDate(sixMonthsAgo)), 
-      orderBy("date", "desc")
+      // Fetch more transactions if needed for accurate "paid" status of bills from previous month end
+      orderBy("date", "desc") 
+    );
+    
+    const budgetsQuery = query(
+        collection(db, "budgets"),
+        where("userId", "==", currentUser.uid)
     );
 
-    const unsubscribeTransactions = onSnapshot(transactionsQuery, (snapshot) => {
+    const unsubscribeTransactions = onSnapshot(transactionsQuery, (transactionsSnapshot) => {
       const allFetchedTransactions: Transaction[] = [];
-      snapshot.forEach(doc => {
+      transactionsSnapshot.forEach(doc => {
         const data = doc.data();
         allFetchedTransactions.push({ 
           id: doc.id, 
@@ -107,7 +115,7 @@ export default function DashboardPage() {
         } as Transaction);
       });
       
-      setRecentTransactions(allFetchedTransactions.slice(0, 5));
+      setRecentTransactions(allFetchedTransactions.filter(tx => new Date(tx.date) >= sixMonthsAgo).slice(0, 5));
 
       let newMtdIncome = 0;
       let newMtdExpenses = 0;
@@ -119,6 +127,7 @@ export default function DashboardPage() {
 
       allFetchedTransactions.forEach(tx => {
         const txDate = new Date(tx.date);
+        // Simplified balance - sum all transactions. Could be refined.
         if (tx.type === 'income') newCurrentBalance += tx.amount;
         else newCurrentBalance -= Math.abs(tx.amount);
 
@@ -159,15 +168,66 @@ export default function DashboardPage() {
         .slice(0,5); 
       setSpendingData(newSpendingData);
 
-      setIsLoadingDashboard(false);
+      // Nested snapshot for budgets, or use Promise.all for separate fetches
+      const unsubscribeBudgets = onSnapshot(budgetsQuery, (budgetsSnapshot) => {
+          const fetchedBudgets: Budget[] = [];
+          budgetsSnapshot.forEach(doc => {
+            const data = doc.data();
+            fetchedBudgets.push({
+                id: doc.id,
+                ...data
+            } as Budget);
+          });
+          
+          // Calculate Upcoming Bills
+          const today = new Date();
+          const currentYear = getYear(today);
+          const currentMonthIndex = getMonth(today); // 0-11
+
+          const bills: UpcomingBillDisplay[] = [];
+          fetchedBudgets.filter(b => b.isRecurringBill && b.period === 'Monthly' && b.dueDateDay)
+            .forEach(bill => {
+                let dueDateThisMonth = new Date(currentYear, currentMonthIndex, bill.dueDateDay!);
+                
+                if (isPast(dueDateThisMonth) && getDate(today) > bill.dueDateDay!) { // If due date in current month is past
+                    dueDateThisMonth = addMonths(dueDateThisMonth, 1); // Look at next month's due date
+                }
+
+                // Basic "paid" check: is there an expense transaction for this category this month?
+                const isPaid = allFetchedTransactions.some(tx => 
+                    tx.type === 'expense' &&
+                    tx.category === bill.category &&
+                    getMonth(new Date(tx.date)) === getMonth(dueDateThisMonth) && // Check if transaction is in the same month as the due date (current or next)
+                    getYear(new Date(tx.date)) === getYear(dueDateThisMonth) &&
+                    Math.abs(tx.amount) >= bill.allocatedAmount * 0.8 // Optional: amount check (e.g. at least 80% of bill)
+                );
+
+                bills.push({
+                    id: bill.id,
+                    name: bill.name,
+                    category: bill.category,
+                    amount: bill.allocatedAmount,
+                    dueDate: dueDateThisMonth,
+                    isPaid: isPaid,
+                    // icon: mapCategoryToIcon(bill.category) // Implement mapCategoryToIcon
+                });
+            });
+          
+          setUpcomingBills(bills.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 3)); // Show top 3 upcoming
+          setIsLoadingDashboard(false);
+      });
+      return () => unsubscribeBudgets(); // Clean up budget listener
+
     }, (error) => {
       console.error("Error fetching transactions for dashboard:", error);
       setIsLoadingDashboard(false);
     });
 
-    return () => unsubscribeTransactions();
+    return () => unsubscribeTransactions(); // Clean up transaction listener
   }, [currentUser]);
 
+
+  // Fetch Goals
   useEffect(() => {
     if (!currentUser) return;
     
@@ -212,6 +272,36 @@ const spendingByCategoryChartConfig = {
   // Dynamically filled by data
 } satisfies ChartConfig;
 
+const mapCategoryToIcon = (category: string): React.ReactNode => {
+    switch (category.toLowerCase()) {
+        case 'subscriptions':
+        case 'netflix':
+        case 'spotify':
+            return <Tv className="w-5 h-5" />;
+        case 'utilities':
+        case 'electricity':
+        case 'water':
+            return <Zap className="w-5 h-5" />;
+        case 'internet':
+        case 'phone':
+            return <Wifi className="w-5 h-5" />;
+        case 'rent':
+        case 'mortgage':
+            return <HandCoins className="w-5 h-5" />; // Or a house icon
+        case 'insurance':
+            return <ShieldCheck className="w-5 h-5" />;
+        case 'debt payment':
+        case 'loan':
+            return <CreditCard className="w-5 h-5" />;
+        case 'shopping':
+            return <ShoppingBag className="w-5 h-5" />;
+        case 'gym':
+            return <Dumbbell className="w-5 h-5" />;
+        default:
+            return <CalendarDays className="w-5 h-5" />;
+    }
+};
+
 
   if (!mounted) { 
     return (
@@ -254,7 +344,7 @@ const spendingByCategoryChartConfig = {
         </div>
         <div className="flex gap-2">
             <Button asChild variant="outline"><Link href="/transactions"><PlusCircle className="w-4 h-4 mr-2" />Add Transaction</Link></Button>
-            <Button asChild><Link href="/budgets"><PieChartIcon className="w-4 h-4 mr-2" />Create Budget</Link></Button>
+            <Button asChild><Link href="/budgets"><PieChartIcon className="w-4 h-4 mr-2" />Manage Budgets</Link></Button>
         </div>
       </div>
       
@@ -289,7 +379,7 @@ const spendingByCategoryChartConfig = {
                   <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                  <Legend content={<ChartLegendContent />} />
+                  <ChartLegend content={<ChartLegendContent />} />
                   <Line type="monotone" dataKey="income" strokeWidth={2} stroke="var(--color-income)" dot={{ fill: "var(--color-income)", r:4 }} activeDot={{r:6}} />
                   <Line type="monotone" dataKey="expenses" strokeWidth={2} stroke="var(--color-expenses)" dot={{ fill: "var(--color-expenses)", r:4 }} activeDot={{r:6}} />
                 </LineChart>
@@ -376,27 +466,30 @@ const spendingByCategoryChartConfig = {
         <Card>
           <CardHeader>
             <CardTitle>Upcoming Bills & Subscriptions</CardTitle>
-            <CardDescription>Don't miss a payment. (Static Demo)</CardDescription>
+            <CardDescription>Key recurring monthly payments.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              { name: 'Netflix', date: '25th June', amount: 15.99, icon: <Tv className="w-5 h-5" /> },
-              { name: 'Electricity Bill', date: '28th June', amount: 75.50, icon: <Zap className="w-5 h-5" /> },
-              { name: 'Gym Membership', date: '1st July', amount: 40.00, icon: <Dumbbell className="w-5 h-5" /> },
-            ].map((bill, index) => (
-              <div key={index} className="flex items-center p-3 rounded-md bg-muted/50">
-                <div className="p-2 mr-3 rounded-full bg-primary/10 text-primary">
-                  {bill.icon || <CalendarDays className="w-5 h-5" />}
+          <CardContent className="space-y-3">
+            {isLoadingDashboard ? Array.from({length:3}).map((_,i) => <Skeleton key={i} className="w-full h-16 rounded-md"/>) : 
+            upcomingBills.length > 0 ? (
+              upcomingBills.map((bill) => (
+                <div key={bill.id} className={`flex items-center p-3 rounded-md bg-muted/50 ${bill.isPaid ? 'opacity-70' : ''}`}>
+                  <div className={`p-2 mr-3 rounded-full ${bill.isPaid ? 'bg-green-500/20 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                    {bill.isPaid ? <CheckCircle2 className="w-5 h-5" /> : (mapCategoryToIcon(bill.category) || <CalendarDays className="w-5 h-5" />)}
+                  </div>
+                  <div>
+                    <p className={`font-medium ${bill.isPaid ? 'line-through' : ''}`}>{bill.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Due: {format(bill.dueDate, "MMM dd")}
+                    </p>
+                  </div>
+                  <p className={`ml-auto font-semibold ${bill.isPaid ? 'line-through text-muted-foreground' : ''}`}>
+                    ${bill.amount.toFixed(2)}
+                  </p>
                 </div>
-                <div>
-                  <p className="font-medium">{bill.name}</p>
-                  <p className="text-sm text-muted-foreground">Due: {bill.date}</p>
-                </div>
-                <p className="ml-auto font-semibold">${bill.amount.toFixed(2)}</p>
-              </div>
-            ))}
-            {/* Add a note here if you want to inform users it's a future feature */}
-            <p className="text-xs text-center text-muted-foreground pt-2">Dynamic bill tracking coming soon!</p>
+              ))
+            ) : (
+              <p className="text-sm text-center text-muted-foreground py-4">No upcoming bills marked, or all paid for the current/next cycle. Add recurring bills in Budgets.</p>
+            )}
           </CardContent>
         </Card>
       </div>

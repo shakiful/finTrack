@@ -54,6 +54,8 @@ export default function BudgetsPage() {
           period: data.period,
           startDate: data.startDate ? (data.startDate as Timestamp).toDate().toISOString() : undefined,
           endDate: data.endDate ? (data.endDate as Timestamp).toDate().toISOString() : undefined,
+          isRecurringBill: data.isRecurringBill || false,
+          dueDateDay: data.dueDateDay,
         });
       });
       setBudgets(budgetsData);
@@ -74,21 +76,34 @@ export default function BudgetsPage() {
     }
     try {
       const budgetToSave: any = {
-        ...newBudgetData, // name, category, allocatedAmount, period
+        ...newBudgetData, 
         userId: currentUser.uid,
-        spentAmount: 0, // newBudgetData.spentAmount is already part of it, if needed. For ADD, it's 0.
+        spentAmount: 0, 
       };
 
       if (newBudgetData.startDate) {
         budgetToSave.startDate = Timestamp.fromDate(new Date(newBudgetData.startDate));
+      } else {
+        budgetToSave.startDate = deleteField();
       }
       if (newBudgetData.endDate) {
         budgetToSave.endDate = Timestamp.fromDate(new Date(newBudgetData.endDate));
+      } else {
+        budgetToSave.endDate = deleteField();
+      }
+
+      if (newBudgetData.hasOwnProperty('isRecurringBill')) {
+        budgetToSave.isRecurringBill = newBudgetData.isRecurringBill;
+      } else {
+        budgetToSave.isRecurringBill = deleteField();
+      }
+       if (newBudgetData.hasOwnProperty('dueDateDay') && newBudgetData.dueDateDay !== undefined) {
+        budgetToSave.dueDateDay = newBudgetData.dueDateDay;
+      } else {
+        budgetToSave.dueDateDay = deleteField();
       }
       
       await addDoc(collection(db, "budgets"), budgetToSave);
-      // Toast is handled in modal now for add success
-      // toast({ title: "Budget Created", description: `Budget "${newBudgetData.name}" has been created.` });
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error adding budget:", error);
@@ -115,10 +130,18 @@ export default function BudgetsPage() {
       if (dataToUpdateFirebase.hasOwnProperty('endDate')) {
          dataToSave.endDate = dataToUpdateFirebase.endDate ? Timestamp.fromDate(new Date(dataToUpdateFirebase.endDate)) : deleteField();
       }
+      if (dataToUpdateFirebase.hasOwnProperty('isRecurringBill')) {
+        dataToSave.isRecurringBill = dataToUpdateFirebase.isRecurringBill;
+      } else {
+         dataToSave.isRecurringBill = deleteField(); // if not present in updatedBudget, remove it
+      }
+      if (dataToUpdateFirebase.hasOwnProperty('dueDateDay')) {
+        dataToSave.dueDateDay = dataToUpdateFirebase.dueDateDay !== undefined ? dataToUpdateFirebase.dueDateDay : deleteField();
+      } else {
+        dataToSave.dueDateDay = deleteField(); // if not present in updatedBudget, remove it
+      }
       
       await updateDoc(budgetRef, dataToSave);
-      // Toast is handled in modal now for update success
-      // toast({ title: "Budget Updated", description: "Budget has been updated." });
       setIsModalOpen(false);
       setEditingBudget(null);
     } catch (error) {
@@ -158,7 +181,7 @@ export default function BudgetsPage() {
       <div className="flex items-center justify-between">
         <div>
             <h1 className="text-3xl font-bold">Budgets</h1>
-            <p className="text-muted-foreground">Create and track your spending budgets.</p>
+            <p className="text-muted-foreground">Create and track your spending budgets and recurring bills.</p>
         </div>
         <CreateBudgetModal
             onAddBudget={handleAddBudget}
@@ -192,14 +215,14 @@ export default function BudgetsPage() {
                   <CardTitle className="mt-4">No Budgets Yet</CardTitle>
               </CardHeader>
               <CardContent>
-                  <p className="text-muted-foreground">Get started by creating your first budget.</p>
+                  <p className="text-muted-foreground">Get started by creating your first budget or recurring bill.</p>
               </CardContent>
               <CardFooter className="justify-center">
                   <CreateBudgetModal
                       onAddBudget={handleAddBudget}
                       onUpdateBudget={handleUpdateBudget}
                       editingBudget={editingBudget}
-                      isOpen={isModalOpen && !editingBudget} // Only open this instance if not editing
+                      isOpen={isModalOpen && !editingBudget} 
                       onOpenChange={handleModalOpenChange}
                       trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Create New Budget</Button>}
                   />
@@ -210,5 +233,3 @@ export default function BudgetsPage() {
     </div>
   );
 }
-
-    
