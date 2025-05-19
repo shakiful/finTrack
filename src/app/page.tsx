@@ -16,7 +16,7 @@ const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode, titl
       <CardTitle className="text-xl">{title}</CardTitle>
     </CardHeader>
     <CardContent>
-      <p className="text-muted-foreground">{description}s</p>
+      <p className="text-muted-foreground">{description}</p>
     </CardContent>
   </Card>
 );
