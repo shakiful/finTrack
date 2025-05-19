@@ -106,7 +106,7 @@ export default function GoalsPage() {
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error adding goal:", error);
-      toast({ title: "Error", description: "Could not add goal.", variant: "destructive" });
+      toast({ title: "Error adding goal", description: "Could not add goal.", variant: "destructive" });
     }
   };
 
@@ -116,42 +116,43 @@ export default function GoalsPage() {
   };
 
   const handleUpdateGoal = async (updatedGoal: Goal) => {
-    if (!currentUser || !updatedGoal.id) return;
+    if (!currentUser || !updatedGoal.id) {
+      toast({ title: "Error", description: "Cannot update goal. Missing user or goal ID.", variant: "destructive" });
+      return;
+    }
     try {
       const goalRef = doc(db, "goals", updatedGoal.id);
       
-      const { id, userId, ...dataFieldsToUpdate } = updatedGoal;
-      const dataForUpdate: any = {...dataFieldsToUpdate};
+      const dataForUpdate: { [key: string]: any } = {
+        name: updatedGoal.name,
+        targetAmount: updatedGoal.targetAmount,
+        currentAmount: updatedGoal.currentAmount, // currentAmount should be managed by add funds or initial setup
+      };
 
-
-      if (dataFieldsToUpdate.hasOwnProperty('targetDate')) {
-        if (dataFieldsToUpdate.targetDate) {
-          dataForUpdate.targetDate = Timestamp.fromDate(new Date(dataFieldsToUpdate.targetDate));
-        } else {
-          dataForUpdate.targetDate = deleteField(); 
-        }
+      // Handle targetDate
+      if (updatedGoal.targetDate && typeof updatedGoal.targetDate === 'string' && new Date(updatedGoal.targetDate).toString() !== 'Invalid Date') {
+        dataForUpdate.targetDate = Timestamp.fromDate(new Date(updatedGoal.targetDate));
+      } else {
+        // If targetDate is not a valid string, or intentionally cleared, delete it
+        dataForUpdate.targetDate = deleteField();
       }
 
-      if (dataFieldsToUpdate.hasOwnProperty('description')) {
-        if (dataFieldsToUpdate.description) {
-          dataForUpdate.description = dataFieldsToUpdate.description;
-        } else {
-          dataForUpdate.description = deleteField(); 
-        }
+      // Handle description
+      if (updatedGoal.description && updatedGoal.description.trim() !== '') {
+        dataForUpdate.description = updatedGoal.description.trim();
+      } else {
+        // If description is empty or not provided, delete it
+        dataForUpdate.description = deleteField();
       }
       
-      if (Object.keys(dataForUpdate).length > 0) {
-        await updateDoc(goalRef, dataForUpdate);
-         // Toast handled in modal
-      } else {
-         toast({ title: "No Changes", description: "No changes were made to the goal." });
-      }
-
+      await updateDoc(goalRef, dataForUpdate);
+      toast({ title: "Goal Updated", description: `Your goal "${updatedGoal.name}" has been updated.` });
       setIsModalOpen(false); 
       setEditingGoal(null);
     } catch (error) {
       console.error("Error updating goal:", error);
-      toast({ title: "Error", description: "Could not update goal.", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+      toast({ title: "Error updating goal", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -218,7 +219,7 @@ export default function GoalsPage() {
             editingGoal={editingGoal} 
             isOpen={isModalOpen}
             onOpenChange={handleModalOpenChange}
-            trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />{editingGoal ? "Edit Goal" : "Set New Goal"}</Button>}
+            trigger={<Button onClick={() => { setEditingGoal(null); setIsModalOpen(true);}}><PlusCircle className="w-4 h-4 mr-2" />{editingGoal ? "Edit Goal" : "Set New Goal"}</Button>}
         />
       </div>
 
@@ -251,10 +252,10 @@ export default function GoalsPage() {
                    <SetGoalModal
                       onAddGoal={handleAddGoal}
                       onUpdateGoal={handleUpdateGoal}
-                      editingGoal={editingGoal}
-                      isOpen={isModalOpen && !editingGoal} // Only open this instance if not editing
+                      editingGoal={null} // Ensure this instance is for adding new
+                      isOpen={isModalOpen && !editingGoal} 
                       onOpenChange={handleModalOpenChange}
-                      trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
+                      trigger={<Button onClick={() => { setEditingGoal(null); setIsModalOpen(true);}}><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
                   />
               </CardFooter>
           </Card>
@@ -290,5 +291,7 @@ export default function GoalsPage() {
     </div>
   );
 }
+
+    
 
     
