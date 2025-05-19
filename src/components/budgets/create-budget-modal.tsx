@@ -134,12 +134,9 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         budgetPayload.spentAmount = parsedSpentAmount;
     }
 
-    // Only add startDate/endDate if period is 'Custom' AND the date is defined
-    if (period === 'Custom' && startDate) {
-        budgetPayload.startDate = startDate.toISOString();
-    }
-    if (period === 'Custom' && endDate) {
-        budgetPayload.endDate = endDate.toISOString();
+    if (period === 'Custom') {
+      if (startDate) budgetPayload.startDate = startDate.toISOString();
+      if (endDate) budgetPayload.endDate = endDate.toISOString();
     }
     
     if (isRecurringBill && period === 'Monthly' && dueDateDay) {
@@ -185,7 +182,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   };
   
   const formContent = ( 
-    <div className="space-y-4 p-6"> {/* Content padding handled here */}
+    <div className="space-y-4 p-6">
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
         <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
@@ -307,11 +304,11 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   );
 
   const wrappedDialogContent = (
-    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0"> {/* Parent allows child to take space and manages overflow for flex */}
-      <ScrollArea className="flex-1"> {/* ScrollArea takes available space */}
-        {formContent} {/* formContent is the scrollable content with its own padding */}
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+      <ScrollArea className="flex-1">
+        {formContent}
       </ScrollArea>
-      <DialogFooter className="p-6 pt-4 border-t flex-shrink-0"> {/* Footer is fixed */}
+      <DialogFooter className="p-6 pt-4 border-t flex-shrink-0">
         <Button type="submit">{isEditMode ? "Update Budget" : "Create Budget"}</Button>
       </DialogFooter>
     </form>
@@ -321,7 +318,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>{trigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
@@ -336,7 +333,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   
   return ( 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
            <DialogHeader className="p-6 pb-4 border-b">
              <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
