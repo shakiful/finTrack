@@ -9,14 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Budget } from '@/lib/types';
-import { Brain, CalendarIcon, CheckSquare, Square } from "lucide-react";
+import { Brain, CalendarIcon } from "lucide-react";
 import { aiPoweredBudgetSuggestions, AIPoweredBudgetSuggestionsOutput } from '@/ai/flows/ai-powered-budget-suggestions';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Added ScrollArea
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CreateBudgetModalProps {
   onAddBudget: (budget: Omit<Budget, 'id' | 'userId' | 'spentAmount'>) => void;
@@ -27,7 +27,7 @@ interface CreateBudgetModalProps {
   trigger?: React.ReactNode;
 }
 
-const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Subscriptions", "Insurance", "Debt Payment", "Salary", "Freelance Income", "Investments", "Gifts Received", "Other"];
+const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Housing", "Subscriptions", "Insurance", "Debt Payment", "Savings", "Investments", "Salary", "Freelance Income", "Gifts Received", "Other"];
 const budgetPeriods = ['Monthly', 'Quarterly', 'Yearly', 'Custom'];
 
 export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, isOpen, onOpenChange, trigger }: CreateBudgetModalProps) {
@@ -35,7 +35,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [allocatedAmount, setAllocatedAmount] = useState('');
-  const [spentAmount, setSpentAmount] = useState('');
+  const [spentAmount, setSpentAmount] = useState('0'); // Default to 0 for new, will be set in edit
   const [period, setPeriod] = useState<Budget['period']>('Monthly');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
@@ -122,16 +122,17 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       return;
     }
 
-
-    const budgetPayload: Omit<Budget, 'id' | 'userId' | 'spentAmount'> & { spentAmount?: number } = {
+    const budgetPayloadBase: Omit<Budget, 'id' | 'userId' | 'spentAmount' | 'startDate' | 'endDate' | 'dueDateDay'> = {
         name,
         category: finalCategory,
         allocatedAmount: parsedAllocatedAmount,
-        // spentAmount will be part of the payload only in edit mode, otherwise parent handles it
         period,
         isRecurringBill: isRecurringBill,
     };
     
+    let budgetPayload: Partial<Budget> = {...budgetPayloadBase};
+
+
     if (isEditMode) {
         budgetPayload.spentAmount = parsedSpentAmount;
     }
@@ -153,7 +154,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         ...editingBudget, 
         ...budgetPayload,
         spentAmount: parsedSpentAmount // Ensure spentAmount is correctly passed for update
-      });
+      } as Budget); // Cast to Budget to satisfy onUpdateBudget
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
       const { spentAmount: payloadSpentAmountForAdd, ...restOfPayloadForAdd } = budgetPayload;
@@ -186,8 +187,8 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     setIsSuggesting(false);
   };
   
-  const formContent = (
-    <div className="space-y-4">
+  const formContent = ( // This is the content that will scroll
+    <div className="space-y-4 p-6"> {/* Padding applied to the scrollable content */}
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
         <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
@@ -311,11 +312,11 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
 
 
   const wrappedDialogContent = (
-    <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-y-hidden">
-      <ScrollArea className="flex-1 p-6 pr-4 md:pr-6"> 
+    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0"> {/* Key: flex-1, min-h-0 */}
+      <ScrollArea className="flex-1 min-h-0"> {/* Key: flex-1, min-h-0 */}
         {formContent}
       </ScrollArea>
-      <DialogFooter className="p-6 pt-4 border-t">
+      <DialogFooter className="p-6 pt-4 border-t flex-shrink-0"> {/* Footer outside scroll, padding handled by DialogFooter itself */}
         <Button type="submit">{isEditMode ? "Update Budget" : "Create Budget"}</Button>
       </DialogFooter>
     </form>
@@ -325,14 +326,14 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>{trigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0">
-          <DialogHeader className="p-6 pb-4 border-b">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0"> {/* p-0 is important */}
+          <DialogHeader className="p-6 pb-4 border-b"> {/* Header handles its own padding */}
             <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
             </DialogDescription>
           </DialogHeader>
-          {wrappedDialogContent}
+          {wrappedDialogContent} {/* Form fills remaining space */}
         </DialogContent>
       </Dialog>
     );
@@ -352,3 +353,4 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     </Dialog>
   );
 }
+
