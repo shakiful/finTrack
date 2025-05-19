@@ -76,7 +76,7 @@ export default function BudgetsPage() {
       const budgetToSave: any = {
         ...newBudgetData, // name, category, allocatedAmount, period
         userId: currentUser.uid,
-        spentAmount: 0,
+        spentAmount: 0, // newBudgetData.spentAmount is already part of it, if needed. For ADD, it's 0.
       };
 
       if (newBudgetData.startDate) {
@@ -87,7 +87,8 @@ export default function BudgetsPage() {
       }
       
       await addDoc(collection(db, "budgets"), budgetToSave);
-      toast({ title: "Budget Created", description: `Budget "${newBudgetData.name}" has been created.` });
+      // Toast is handled in modal now for add success
+      // toast({ title: "Budget Created", description: `Budget "${newBudgetData.name}" has been created.` });
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error adding budget:", error);
@@ -97,33 +98,27 @@ export default function BudgetsPage() {
 
   const handleEditBudget = (budget: Budget) => {
     setEditingBudget(budget);
-    // setIsModalOpen(true); // This would open CreateBudgetModal adapted for editing
-    toast({ title: "Edit Action (Conceptual)", description: `Editing budget: ${budget.name}. Full edit UI with Firestore update needs modal adaptation.`});
-    // For a full implementation, CreateBudgetModal would need an onUpdate prop and pre-filling logic like AddTransactionModal
+    setIsModalOpen(true);
   };
 
    const handleUpdateBudget = async (updatedBudget: Budget) => {
     if (!currentUser || !updatedBudget.id) return;
     try {
       const budgetRef = doc(db, "budgets", updatedBudget.id);
-      const dataToUpdate: any = {
-        name: updatedBudget.name,
-        category: updatedBudget.category,
-        allocatedAmount: updatedBudget.allocatedAmount,
-        spentAmount: updatedBudget.spentAmount, // Assuming this can be updated
-        period: updatedBudget.period,
-        // userId is not updated
-      };
+      const { id, userId, ...dataToUpdateFirebase } = updatedBudget;
 
-      if (updatedBudget.hasOwnProperty('startDate')) {
-        dataToUpdate.startDate = updatedBudget.startDate ? Timestamp.fromDate(new Date(updatedBudget.startDate)) : deleteField();
+      const dataToSave: any = { ...dataToUpdateFirebase };
+
+      if (dataToUpdateFirebase.hasOwnProperty('startDate')) {
+        dataToSave.startDate = dataToUpdateFirebase.startDate ? Timestamp.fromDate(new Date(dataToUpdateFirebase.startDate)) : deleteField();
       }
-      if (updatedBudget.hasOwnProperty('endDate')) {
-         dataToUpdate.endDate = updatedBudget.endDate ? Timestamp.fromDate(new Date(updatedBudget.endDate)) : deleteField();
+      if (dataToUpdateFirebase.hasOwnProperty('endDate')) {
+         dataToSave.endDate = dataToUpdateFirebase.endDate ? Timestamp.fromDate(new Date(dataToUpdateFirebase.endDate)) : deleteField();
       }
       
-      await updateDoc(budgetRef, dataToUpdate);
-      toast({ title: "Budget Updated", description: "Budget has been updated." });
+      await updateDoc(budgetRef, dataToSave);
+      // Toast is handled in modal now for update success
+      // toast({ title: "Budget Updated", description: "Budget has been updated." });
       setIsModalOpen(false);
       setEditingBudget(null);
     } catch (error) {
@@ -167,11 +162,11 @@ export default function BudgetsPage() {
         </div>
         <CreateBudgetModal
             onAddBudget={handleAddBudget}
-            // onUpdateBudget={handleUpdateBudget} // Add this prop if modal is adapted
-            // editingBudget={editingBudget} // Add this prop
+            onUpdateBudget={handleUpdateBudget} 
+            editingBudget={editingBudget} 
             isOpen={isModalOpen}
             onOpenChange={handleModalOpenChange}
-            trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Create New Budget</Button>}
+            trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />{editingBudget ? "Edit Budget" : "Create New Budget"}</Button>}
         />
       </div>
 
@@ -182,7 +177,7 @@ export default function BudgetsPage() {
             <BudgetCard 
               key={budget.id} 
               budget={budget} 
-              onEdit={handleEditBudget} // For full edit, this should open modal with budget data
+              onEdit={handleEditBudget} 
               onDelete={handleDeleteBudget}
             />
           ))}
@@ -202,7 +197,9 @@ export default function BudgetsPage() {
               <CardFooter className="justify-center">
                   <CreateBudgetModal
                       onAddBudget={handleAddBudget}
-                      isOpen={isModalOpen} // This single modal instance might be tricky for create vs edit
+                      onUpdateBudget={handleUpdateBudget}
+                      editingBudget={editingBudget}
+                      isOpen={isModalOpen && !editingBudget} // Only open this instance if not editing
                       onOpenChange={handleModalOpenChange}
                       trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Create New Budget</Button>}
                   />
@@ -213,3 +210,5 @@ export default function BudgetsPage() {
     </div>
   );
 }
+
+    
