@@ -93,12 +93,14 @@ export default function GoalsPage() {
       if (newGoalData.targetDate) {
         goalToSave.targetDate = Timestamp.fromDate(new Date(newGoalData.targetDate));
       } else {
-         goalToSave.targetDate = deleteField();
+         // For addDoc, we simply don't include the field if it's not provided.
+         // deleteField() is for updateDoc.
+         // So, no need to set goalToSave.targetDate = deleteField() here.
       }
       if (newGoalData.description) {
         goalToSave.description = newGoalData.description;
       } else {
-         goalToSave.description = deleteField();
+        // Similarly, don't include description if not provided for addDoc
       }
       
       await addDoc(collection(db, "goals"), goalToSave);
@@ -123,28 +125,45 @@ export default function GoalsPage() {
     try {
       const goalRef = doc(db, "goals", updatedGoal.id);
       
-      const dataForUpdate: { [key: string]: any } = {
-        name: updatedGoal.name,
-        targetAmount: updatedGoal.targetAmount,
-        currentAmount: updatedGoal.currentAmount, // currentAmount should be managed by add funds or initial setup
-      };
+      const dataForUpdate: { [key: string]: any } = {};
 
-      // Handle targetDate
+      // Required fields - should always be present from `updatedGoal` if type `Goal` is respected
+      if (updatedGoal.name !== undefined) {
+        dataForUpdate.name = updatedGoal.name;
+      }
+      if (updatedGoal.targetAmount !== undefined) {
+        dataForUpdate.targetAmount = updatedGoal.targetAmount;
+      }
+      if (updatedGoal.currentAmount !== undefined) {
+        dataForUpdate.currentAmount = updatedGoal.currentAmount;
+      }
+
+      // Handle optional targetDate
+      // If updatedGoal.targetDate is a valid ISO string, convert to Timestamp.
+      // If it's undefined/null (meaning cleared in modal), use deleteField().
       if (updatedGoal.targetDate && typeof updatedGoal.targetDate === 'string' && new Date(updatedGoal.targetDate).toString() !== 'Invalid Date') {
         dataForUpdate.targetDate = Timestamp.fromDate(new Date(updatedGoal.targetDate));
       } else {
-        // If targetDate is not a valid string, or intentionally cleared, delete it
         dataForUpdate.targetDate = deleteField();
       }
 
-      // Handle description
-      if (updatedGoal.description && updatedGoal.description.trim() !== '') {
+      // Handle optional description
+      // If updatedGoal.description is a non-empty string, use it.
+      // If it's undefined/null/empty (meaning cleared in modal), use deleteField().
+      if (updatedGoal.description && typeof updatedGoal.description === 'string' && updatedGoal.description.trim() !== '') {
         dataForUpdate.description = updatedGoal.description.trim();
       } else {
-        // If description is empty or not provided, delete it
         dataForUpdate.description = deleteField();
       }
       
+      // Only proceed if there's something to update
+      if (Object.keys(dataForUpdate).length === 0) {
+          toast({ title: "No Changes", description: "No changes were made to the goal."});
+          setIsModalOpen(false);
+          setEditingGoal(null);
+          return;
+      }
+
       await updateDoc(goalRef, dataForUpdate);
       toast({ title: "Goal Updated", description: `Your goal "${updatedGoal.name}" has been updated.` });
       setIsModalOpen(false); 
@@ -252,9 +271,12 @@ export default function GoalsPage() {
                    <SetGoalModal
                       onAddGoal={handleAddGoal}
                       onUpdateGoal={handleUpdateGoal}
-                      editingGoal={null} // Ensure this instance is for adding new
+                      editingGoal={null} 
                       isOpen={isModalOpen && !editingGoal} 
-                      onOpenChange={handleModalOpenChange}
+                      onOpenChange={(open) => {
+                        setIsModalOpen(open);
+                        if(!open) setEditingGoal(null); // Ensure editingGoal is cleared if this specific modal instance is closed
+                      }}
                       trigger={<Button onClick={() => { setEditingGoal(null); setIsModalOpen(true);}}><PlusCircle className="w-4 h-4 mr-2" />Set New Goal</Button>}
                   />
               </CardFooter>
@@ -291,7 +313,6 @@ export default function GoalsPage() {
     </div>
   );
 }
-
     
 
     
