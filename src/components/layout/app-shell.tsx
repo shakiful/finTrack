@@ -107,10 +107,20 @@ function AppSidebar() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className={`w-full justify-start gap-2 ${state === 'collapsed' ? 'px-2' : 'px-3'}`}>
               <Avatar className="w-8 h-8">
-                <AvatarImage src="https://placehold.co/40x40.png" alt="User" data-ai-hint="user avatar" />
-                <AvatarFallback>{auth.currentUser?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                <AvatarImage 
+                  src={auth.currentUser?.photoURL || undefined} 
+                  alt={auth.currentUser?.displayName || auth.currentUser?.email || "User Avatar"}
+                  data-ai-hint="user avatar" 
+                />
+                <AvatarFallback>
+                  {auth.currentUser?.displayName ? auth.currentUser.displayName.charAt(0).toUpperCase() : (auth.currentUser?.email ? auth.currentUser.email.charAt(0).toUpperCase() : 'U')}
+                </AvatarFallback>
               </Avatar>
-              {state === 'expanded' && <span className="truncate">{auth.currentUser?.displayName || auth.currentUser?.email || 'User Name'}</span>}
+              {state === 'expanded' && (
+                <span className="truncate">
+                  {auth.currentUser?.displayName || auth.currentUser?.email || 'User Account'}
+                </span>
+              )}
               {state === 'expanded' && <ChevronDown className="w-4 h-4 ml-auto" />}
             </Button>
           </DropdownMenuTrigger>
@@ -165,29 +175,25 @@ function AppHeader({ title }: { title: string }) {
 
 
 export function AppShell({ children, pageTitle }: { children: React.ReactNode, pageTitle: string }) {
-  // Attempt to get user information for display
-  // Note: This is a basic way. For real-time updates & proper state management, a context/global state is better.
-  const [currentUserEmail, setCurrentUserEmail] = React.useState<string | null | undefined>(undefined);
-  const [currentUserDisplayName, setCurrentUserDisplayName] = React.useState<string | null | undefined>(undefined);
+  // The auth.onAuthStateChanged listener ensures that auth.currentUser is updated.
+  // The AppSidebar directly uses auth.currentUser, which will re-render when auth state changes.
+  // So, local state for user details in AppShell for this specific purpose is not strictly necessary
+  // if AppSidebar correctly re-renders upon auth.currentUser changes.
 
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
+      // This listener is good for global reactions to auth state,
+      // like redirecting if user logs out, or updating a global user context.
+      // For components like AppSidebar, directly using auth.currentUser 
+      // (and ensuring the component re-renders when it changes) is often sufficient.
       if (user) {
-        setCurrentUserEmail(user.email);
-        setCurrentUserDisplayName(user.displayName);
+        // User is signed in
       } else {
-        setCurrentUserEmail(null);
-        setCurrentUserDisplayName(null);
+        // User is signed out
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribe(); // Cleanup subscription on unmount
   }, []);
-
-
-  // Dynamically update AvatarFallback and display name in AppSidebar based on auth state
-  // This is a simplified approach. Ideally, user state would be managed in a context.
-  // The AppSidebar itself could also subscribe to auth.onAuthStateChanged for a cleaner update.
-  // For now, the existing logic in AppSidebar's DropdownMenuTrigger for AvatarFallback and name will pick up auth.currentUser
 
 
   return (
@@ -204,3 +210,4 @@ export function AppShell({ children, pageTitle }: { children: React.ReactNode, p
     </SidebarProvider>
   );
 }
+
