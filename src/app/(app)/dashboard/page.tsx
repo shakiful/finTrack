@@ -1,11 +1,12 @@
 
 "use client";
 
+import React, { useState, useEffect } from 'react'; // Added useState, useEffect
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins } from "lucide-react"; // Added Target, Banknote, HandCoins
+import { LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -15,8 +16,9 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, PieChart } from 'recharts'; // Added PieChart
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, PieChart } from 'recharts';
 import { exampleTransactions, exampleGoals, Transaction } from '@/lib/types';
+import { Skeleton } from "@/components/ui/skeleton"; // Added Skeleton import
 
 const chartData = [
   { month: "Jan", income: 4000, expenses: 2400 },
@@ -49,7 +51,7 @@ const SummaryWidget = ({ title, value, icon, trend, trendValue }: { title: strin
     <CardContent>
       <div className="text-2xl font-bold">{value}</div>
       {trend && trendValue && (
-        <p className={`text-xs text-muted-foreground flex items-center ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+        <p className={`text-xs text-muted-foreground flex items-center ${trend === 'up' ? 'text-accent' : 'text-destructive'}`}>
           {trend === 'up' ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
           {trendValue} from last month
         </p>
@@ -60,6 +62,11 @@ const SummaryWidget = ({ title, value, icon, trend, trendValue }: { title: strin
 
 
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const recentTransactions = exampleTransactions.slice(0, 5);
   const currentBalance = 5830.50;
   const mtdIncome = 1250.00;
@@ -170,16 +177,27 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentTransactions.map((transaction: Transaction) => (
-                  <TableRow key={transaction.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell>{transaction.category}</TableCell>
-                    <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                    <TableCell className={`text-right ${transaction.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {mounted ? (
+                  recentTransactions.map((transaction: Transaction) => (
+                    <TableRow key={transaction.id} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="font-medium">{transaction.description}</TableCell>
+                      <TableCell>{transaction.category}</TableCell>
+                      <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
+                      <TableCell className={`text-right ${transaction.type === 'income' ? 'text-accent' : 'text-destructive'}`}>
+                        {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={`loading-tx-${index}`}>
+                      <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[70px]" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-[60px] ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -218,20 +236,35 @@ export default function DashboardPage() {
           <Link href="/goals" className="text-sm text-primary hover:underline">Manage Goals</Link>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {exampleGoals.slice(0,3).map(goal => (
-            <Card key={goal.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle className="text-lg">{goal.name}</CardTitle>
-                <CardDescription>Target: ${goal.targetAmount.toFixed(2)}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Progress value={(goal.currentAmount / goal.targetAmount) * 100} className="mb-2 h-3" />
-                <p className="text-sm text-muted-foreground">
-                  ${goal.currentAmount.toFixed(2)} saved ({((goal.currentAmount / goal.targetAmount) * 100).toFixed(0)}%)
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+          {mounted ? (
+            exampleGoals.slice(0,3).map(goal => (
+              <Card key={goal.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-lg">{goal.name}</CardTitle>
+                  <CardDescription>Target: ${goal.targetAmount.toFixed(2)}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Progress value={(goal.currentAmount / goal.targetAmount) * 100} className="mb-2 h-3" />
+                  <p className="text-sm text-muted-foreground">
+                    ${goal.currentAmount.toFixed(2)} saved ({((goal.currentAmount / goal.targetAmount) * 100).toFixed(0)}%)
+                  </p>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            Array.from({ length: 3 }).map((_, index) => ( 
+              <Card key={`loading-goal-${index}`}>
+                <CardHeader>
+                  <CardTitle><Skeleton className="h-6 w-3/4" /></CardTitle>
+                  <CardDescription><Skeleton className="h-4 w-1/2" /></CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-3 w-full mb-2" />
+                  <Skeleton className="h-4 w-3/4" />
+                </CardContent>
+              </Card>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>
