@@ -1,26 +1,27 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react'; // Added useState, useEffect
+import React, { useState, useEffect } from 'react'; 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins } from "lucide-react";
+import { LineChart as LineChartIconLucide, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins } from "lucide-react"; // Renamed LineChart to avoid conflict
 import Link from "next/link";
 import Image from "next/image";
 import {
+  ChartConfig, // Added ChartConfig import
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, PieChart } from 'recharts';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, LineChart, PieChart } from 'recharts'; // Added LineChart and PieChart from recharts
 import { exampleTransactions, exampleGoals, Transaction } from '@/lib/types';
-import { Skeleton } from "@/components/ui/skeleton"; // Added Skeleton import
+import { Skeleton } from "@/components/ui/skeleton";
 
-const chartData = [
+const incomeExpenseChartData = [ // Renamed from chartData to be more specific
   { month: "Jan", income: 4000, expenses: 2400 },
   { month: "Feb", income: 3000, expenses: 1398 },
   { month: "Mar", income: 2000, expenses: 5800 },
@@ -37,10 +38,18 @@ const spendingData = [
   { name: 'Other', value: 150, fill: "hsl(var(--chart-5))" },
 ];
 
-const chartConfig = {
+const incomeExpenseChartConfig = { // Renamed from chartConfig
   income: { label: "Income", color: "hsl(var(--chart-2))" },
   expenses: { label: "Expenses", color: "hsl(var(--chart-1))" },
-};
+} satisfies ChartConfig;
+
+const spendingByCategoryChartConfig = {
+  Groceries: { label: "Groceries" },
+  Utilities: { label: "Utilities" },
+  Transport: { label: "Transport" },
+  Entertainment: { label: "Entertainment" },
+  Other: { label: "Other" },
+} satisfies ChartConfig;
 
 const SummaryWidget = ({ title, value, icon, trend, trendValue }: { title: string; value: string; icon: React.ReactNode; trend?: 'up' | 'down'; trendValue?: string }) => (
   <Card className="transition-shadow duration-300 hover:shadow-lg">
@@ -111,9 +120,9 @@ export default function DashboardPage() {
             <CardDescription>Monthly overview for the last 6 months.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] lg:h-[350px]">
-             <ChartContainer config={chartConfig} className="w-full h-full">
+             <ChartContainer config={incomeExpenseChartConfig} className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <LineChart data={incomeExpenseChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
@@ -132,29 +141,31 @@ export default function DashboardPage() {
             <CardDescription>Current month's spending breakdown.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] lg:h-[350px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie data={spendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} 
-                         label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
-                            const RADIAN = Math.PI / 180;
-                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                            return (
-                                <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10}>
-                                    {`${(percent * 100).toFixed(0)}%`}
-                                </text>
-                            );
-                         }}
-                    >
-                     {spendingData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} />
-                     ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                    <Legend content={<ChartLegendContent nameKey="name"/>}/>
-                </PieChart>
-            </ResponsiveContainer>
+            <ChartContainer config={spendingByCategoryChartConfig} className="w-full h-full">
+              <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                      <Pie data={spendingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} 
+                           label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                              const RADIAN = Math.PI / 180;
+                              const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                              const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                              const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                              return (
+                                  <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10}>
+                                      {`${(percent * 100).toFixed(0)}%`}
+                                  </text>
+                              );
+                           }}
+                      >
+                       {spendingData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} />
+                       ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                      <Legend content={<ChartLegendContent nameKey="name"/>}/>
+                  </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
