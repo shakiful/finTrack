@@ -52,8 +52,8 @@ export default function BudgetsPage() {
           allocatedAmount: data.allocatedAmount,
           spentAmount: data.spentAmount || 0, 
           period: data.period,
-          startDate: data.startDate ? (data.startDate as Timestamp).toDate().toISOString() : undefined,
-          endDate: data.endDate ? (data.endDate as Timestamp).toDate().toISOString() : undefined,
+          startDate: data.startDate ? (data.startDate instanceof Timestamp ? data.startDate.toDate().toISOString() : String(data.startDate)) : undefined,
+          endDate: data.endDate ? (data.endDate instanceof Timestamp ? data.endDate.toDate().toISOString() : String(data.endDate)) : undefined,
           isRecurringBill: data.isRecurringBill || false,
           dueDateDay: data.dueDateDay,
         });
@@ -79,35 +79,33 @@ export default function BudgetsPage() {
         ...newBudgetData, 
         userId: currentUser.uid,
         spentAmount: 0, 
+        isRecurringBill: newBudgetData.isRecurringBill || false,
       };
 
       if (newBudgetData.startDate) {
         budgetToSave.startDate = Timestamp.fromDate(new Date(newBudgetData.startDate));
       } else {
-        budgetToSave.startDate = deleteField();
+        // For add, if startDate is not provided, don't include it or explicitly delete if schema requires absence
+         delete budgetToSave.startDate; // Or use deleteField() if updating an existing template, but this is for addDoc
       }
       if (newBudgetData.endDate) {
         budgetToSave.endDate = Timestamp.fromDate(new Date(newBudgetData.endDate));
       } else {
-        budgetToSave.endDate = deleteField();
+         delete budgetToSave.endDate;
       }
-
-      if (newBudgetData.hasOwnProperty('isRecurringBill')) {
-        budgetToSave.isRecurringBill = newBudgetData.isRecurringBill;
-      } else {
-        budgetToSave.isRecurringBill = deleteField();
-      }
-       if (newBudgetData.hasOwnProperty('dueDateDay') && newBudgetData.dueDateDay !== undefined) {
+      
+      if (newBudgetData.isRecurringBill && newBudgetData.period === 'Monthly' && newBudgetData.dueDateDay !== undefined) {
         budgetToSave.dueDateDay = newBudgetData.dueDateDay;
       } else {
-        budgetToSave.dueDateDay = deleteField();
+        delete budgetToSave.dueDateDay;
       }
       
       await addDoc(collection(db, "budgets"), budgetToSave);
-      setIsModalOpen(false);
+      setIsModalOpen(false); // Toast is handled in modal
     } catch (error) {
       console.error("Error adding budget:", error);
-      toast({ title: "Error", description: "Could not add budget.", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+      toast({ title: "Error adding budget", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -116,37 +114,52 @@ export default function BudgetsPage() {
     setIsModalOpen(true);
   };
 
-   const handleUpdateBudget = async (updatedBudget: Budget) => {
-    if (!currentUser || !updatedBudget.id) return;
+  const handleUpdateBudget = async (updatedBudget: Budget) => {
+    if (!currentUser || !updatedBudget.id) {
+      toast({ title: "Error", description: "Cannot update budget. Missing user or budget ID.", variant: "destructive" });
+      return;
+    }
     try {
       const budgetRef = doc(db, "budgets", updatedBudget.id);
-      const { id, userId, ...dataToUpdateFirebase } = updatedBudget;
+      
+      const dataToUpdate: { [key: string]: any } = {
+        name: updatedBudget.name,
+        category: updatedBudget.category,
+        allocatedAmount: updatedBudget.allocatedAmount,
+        spentAmount: updatedBudget.spentAmount || 0,
+        period: updatedBudget.period,
+        isRecurringBill: updatedBudget.isRecurringBill || false,
+      };
 
-      const dataToSave: any = { ...dataToUpdateFirebase };
+      // Handle startDate
+      if (updatedBudget.period === 'Custom') {
+        dataToUpdate.startDate = updatedBudget.startDate ? Timestamp.fromDate(new Date(updatedBudget.startDate)) : deleteField();
+      } else {
+        dataToUpdate.startDate = deleteField(); // Remove if not 'Custom'
+      }
 
-      if (dataToUpdateFirebase.hasOwnProperty('startDate')) {
-        dataToSave.startDate = dataToUpdateFirebase.startDate ? Timestamp.fromDate(new Date(dataToUpdateFirebase.startDate)) : deleteField();
-      }
-      if (dataToUpdateFirebase.hasOwnProperty('endDate')) {
-         dataToSave.endDate = dataToUpdateFirebase.endDate ? Timestamp.fromDate(new Date(dataToUpdateFirebase.endDate)) : deleteField();
-      }
-      if (dataToUpdateFirebase.hasOwnProperty('isRecurringBill')) {
-        dataToSave.isRecurringBill = dataToUpdateFirebase.isRecurringBill;
+      // Handle endDate
+      if (updatedBudget.period === 'Custom') {
+        dataToUpdate.endDate = updatedBudget.endDate ? Timestamp.fromDate(new Date(updatedBudget.endDate)) : deleteField();
       } else {
-         dataToSave.isRecurringBill = deleteField(); // if not present in updatedBudget, remove it
+        dataToUpdate.endDate = deleteField(); // Remove if not 'Custom'
       }
-      if (dataToUpdateFirebase.hasOwnProperty('dueDateDay')) {
-        dataToSave.dueDateDay = dataToUpdateFirebase.dueDateDay !== undefined ? dataToUpdateFirebase.dueDateDay : deleteField();
+
+      // Handle dueDateDay
+      if (updatedBudget.isRecurringBill && updatedBudget.period === 'Monthly') {
+        dataToUpdate.dueDateDay = (updatedBudget.dueDateDay !== undefined && updatedBudget.dueDateDay !== null) ? updatedBudget.dueDateDay : deleteField();
       } else {
-        dataToSave.dueDateDay = deleteField(); // if not present in updatedBudget, remove it
+        dataToUpdate.dueDateDay = deleteField(); // Remove if not a monthly recurring bill
       }
       
-      await updateDoc(budgetRef, dataToSave);
+      await updateDoc(budgetRef, dataToUpdate);
       setIsModalOpen(false);
       setEditingBudget(null);
+      // Toast is handled in modal upon successful submission by modal's handleSubmit
     } catch (error) {
       console.error("Error updating budget:", error);
-      toast({ title: "Error", description: "Could not update budget.", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+      toast({ title: "Error updating budget", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -183,15 +196,21 @@ export default function BudgetsPage() {
             <h1 className="text-3xl font-bold">Budgets</h1>
             <p className="text-muted-foreground">Create and track your spending budgets and recurring bills.</p>
         </div>
+        {/* This button now correctly reflects edit mode title if editingBudget is set */}
+        <Button onClick={() => setIsModalOpen(true)}> 
+            <PlusCircle className="w-4 h-4 mr-2" />
+            {editingBudget ? "Edit Budget" : "Create New Budget"}
+        </Button>
+      </div>
         <CreateBudgetModal
             onAddBudget={handleAddBudget}
             onUpdateBudget={handleUpdateBudget} 
             editingBudget={editingBudget} 
             isOpen={isModalOpen}
             onOpenChange={handleModalOpenChange}
-            trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />{editingBudget ? "Edit Budget" : "Create New Budget"}</Button>}
+            // Removed trigger from here, as the button above handles opening.
+            // If you want a trigger directly on the modal for the "empty state" scenario, that's separate.
         />
-      </div>
 
       {isLoading && currentUser && <div className="text-center">Loading budgets...</div>}
       {!isLoading && budgets.length > 0 ? (
@@ -218,14 +237,10 @@ export default function BudgetsPage() {
                   <p className="text-muted-foreground">Get started by creating your first budget or recurring bill.</p>
               </CardContent>
               <CardFooter className="justify-center">
-                  <CreateBudgetModal
-                      onAddBudget={handleAddBudget}
-                      onUpdateBudget={handleUpdateBudget}
-                      editingBudget={editingBudget}
-                      isOpen={isModalOpen && !editingBudget} 
-                      onOpenChange={handleModalOpenChange}
-                      trigger={<Button><PlusCircle className="w-4 h-4 mr-2" />Create New Budget</Button>}
-                  />
+                  {/* Button for empty state - also opens the same modal instance */}
+                  <Button onClick={() => { setEditingBudget(null); setIsModalOpen(true); }}>
+                      <PlusCircle className="w-4 h-4 mr-2" />Create New Budget
+                  </Button>
               </CardFooter>
           </Card>
         )

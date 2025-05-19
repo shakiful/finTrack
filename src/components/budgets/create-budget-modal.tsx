@@ -27,7 +27,7 @@ interface CreateBudgetModalProps {
   trigger?: React.ReactNode;
 }
 
-const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Housing", "Subscriptions", "Insurance", "Debt Payment", "Savings", "Investments", "Salary", "Freelance Income", "Gifts Received", "Other"];
+const commonCategories = ["Groceries", "Utilities", "Transport", "Entertainment", "Healthcare", "Shopping", "Education", "Personal Care", "Rent", "Housing", "Subscriptions", "Insurance", "Debt Payment", "Savings", "Investments", "Salary", "Freelance Income", "Gifts Received", "Food", "Dining Out", "Other"];
 const budgetPeriods = ['Monthly', 'Quarterly', 'Yearly', 'Custom'];
 
 export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, isOpen, onOpenChange, trigger }: CreateBudgetModalProps) {
@@ -66,8 +66,17 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         setAllocatedAmount(String(editingBudget.allocatedAmount));
         setSpentAmount(String(editingBudget.spentAmount || 0));
         setPeriod(editingBudget.period);
-        setStartDate(editingBudget.startDate ? new Date(editingBudget.startDate) : undefined);
-        setEndDate(editingBudget.endDate ? new Date(editingBudget.endDate) : undefined);
+
+        const initialStartDate = editingBudget.startDate && typeof editingBudget.startDate === 'string' && !isNaN(new Date(editingBudget.startDate).valueOf()) 
+          ? new Date(editingBudget.startDate) 
+          : undefined;
+        setStartDate(initialStartDate);
+
+        const initialEndDate = editingBudget.endDate && typeof editingBudget.endDate === 'string' && !isNaN(new Date(editingBudget.endDate).valueOf())
+          ? new Date(editingBudget.endDate)
+          : undefined;
+        setEndDate(initialEndDate);
+        
         setIsRecurringBill(editingBudget.isRecurringBill || false);
         setDueDateDay(editingBudget.dueDateDay);
         setAiSuggestion(null); 
@@ -122,7 +131,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       return;
     }
 
-    let budgetPayload: Partial<Budget> = {
+    let budgetPayload: Partial<Omit<Budget, 'id'|'userId'>> = { // Partial for easier construction
         name,
         category: finalCategory,
         allocatedAmount: parsedAllocatedAmount,
@@ -135,22 +144,34 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     }
 
     if (period === 'Custom') {
-      if (startDate) budgetPayload.startDate = startDate.toISOString();
-      if (endDate) budgetPayload.endDate = endDate.toISOString();
+      if (startDate && !isNaN(startDate.valueOf())) budgetPayload.startDate = startDate.toISOString();
+      else budgetPayload.startDate = undefined; // Ensure it's explicitly undefined if not valid/set
+
+      if (endDate && !isNaN(endDate.valueOf())) budgetPayload.endDate = endDate.toISOString();
+      else budgetPayload.endDate = undefined; // Ensure it's explicitly undefined
+    } else {
+      // If period is not custom, ensure these are undefined to signal potential deletion in update
+      budgetPayload.startDate = undefined;
+      budgetPayload.endDate = undefined;
     }
     
     if (isRecurringBill && period === 'Monthly' && dueDateDay) {
         budgetPayload.dueDateDay = dueDateDay;
+    } else if (isRecurringBill && period === 'Monthly' && !dueDateDay) {
+      budgetPayload.dueDateDay = undefined; // Explicitly undefined if cleared
+    } else if (!isRecurringBill || period !== 'Monthly') {
+      budgetPayload.dueDateDay = undefined; // Ensure it's undefined if not applicable
     }
+
 
     if (isEditMode && onUpdateBudget && editingBudget) {
       onUpdateBudget({ 
-        ...editingBudget, 
-        ...budgetPayload,
-        spentAmount: parsedSpentAmount 
-      } as Budget); 
+        ...editingBudget, // spread existing id, userId
+        ...budgetPayload, // new/updated fields
+      } as Budget); // Cast might be needed if budgetPayload is strictly Omit without id/userId
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
+      // For adding, spentAmount is not part of initial Omit type, so it should be handled by parent
       const { spentAmount: payloadSpentAmountForAdd, ...restOfPayloadForAdd } = budgetPayload;
       onAddBudget(restOfPayloadForAdd as Omit<Budget, 'id' | 'userId' | 'spentAmount'>);
       toast({ title: "Budget Created", description: `Budget "${name}" has been created.` });
@@ -182,7 +203,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   };
   
   const formContent = ( 
-    <div className="space-y-4 p-6">
+    <div className="p-6 space-y-4"> {/* Padding moved here */}
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
         <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
@@ -319,7 +340,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogTrigger asChild>{trigger}</DialogTrigger>
         <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-4 border-b">
+          <DialogHeader className="p-6 pb-4 border-b flex-shrink-0">
             <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
@@ -334,7 +355,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
   return ( 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
-           <DialogHeader className="p-6 pb-4 border-b">
+           <DialogHeader className="p-6 pb-4 border-b flex-shrink-0">
              <DialogTitle>{isEditMode ? "Edit Budget" : "Create New Budget"}</DialogTitle>
             <DialogDescription>
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
