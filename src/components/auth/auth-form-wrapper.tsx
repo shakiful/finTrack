@@ -1,6 +1,14 @@
+
+"use client";
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
+import { Button } from "@/components/ui/button"; // Added Button import
+import { useRouter } from "next/navigation";
+import { auth, googleProvider, signInWithPopup } from "@/lib/firebase"; // Firebase imports
+import { useToast } from "@/hooks/use-toast";
+import React, { useState } from "react"; // Added useState
 
 interface AuthFormWrapperProps {
   title: string;
@@ -21,6 +29,28 @@ export function AuthFormWrapper({
   footerText,
   showSocial = true,
 }: AuthFormWrapperProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast({ title: "Sign In Successful", description: "Welcome!" });
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Google Sign In Error:", error);
+      toast({
+        title: "Google Sign In Failed",
+        description: error.message || "Could not sign in with Google. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
       <Card className="w-full max-w-md shadow-xl animate-fadeInUp">
@@ -45,10 +75,16 @@ export function AuthFormWrapper({
                   </span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Placeholder for social login buttons */}
-                <button className="w-full py-2 border rounded-md hover:bg-muted transition-colors">Google</button>
-                <button className="w-full py-2 border rounded-md hover:bg-muted transition-colors">Apple</button>
+              <div className="grid grid-cols-1 gap-4"> {/* Changed to grid-cols-1 */}
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleGoogleSignIn}
+                  disabled={isGoogleLoading}
+                >
+                  {isGoogleLoading ? "Signing In..." : "Google"}
+                </Button>
+                {/* Apple button removed */}
               </div>
             </>
           )}

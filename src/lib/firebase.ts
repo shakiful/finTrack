@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth"; // Added GoogleAuthProvider, signInWithPopup
 // import { getFirestore } from "firebase/firestore"; // Uncomment if you plan to use Firestore
 
 const firebaseConfig = {
@@ -16,6 +16,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider(); // Export instance
 // const db = getFirestore(app); // Uncomment if you plan to use Firestore
 
-export { app, auth /*, db */ };
+export { app, auth, googleProvider, signInWithPopup /*, db */ }; // Exported googleProvider and signInWithPopup
