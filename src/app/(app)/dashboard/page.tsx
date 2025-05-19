@@ -1,10 +1,11 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, ListChecks, BadgeDollarSign, HandCoins, Banknote, Target } from "lucide-react";
+import { LineChart, PieChartIcon, TrendingUp, TrendingDown, PlusCircle, DollarSign, CalendarDays, Target, Banknote, HandCoins } from "lucide-react"; // Added Target, Banknote, HandCoins
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -14,7 +15,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line } from 'recharts';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, Cell, Line, PieChart } from 'recharts'; // Added PieChart
 import { exampleTransactions, exampleGoals, Transaction } from '@/lib/types';
 
 const chartData = [
