@@ -15,8 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { format, isValid, parseISO } from "date-fns";
+// Removed ScrollArea import as we are trying to avoid explicit scroll regions for the main content
 
 interface CreateBudgetModalProps {
   onAddBudget: (budget: Omit<Budget, 'id' | 'userId' | 'spentAmount'>) => void;
@@ -67,14 +67,22 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         setSpentAmount(String(editingBudget.spentAmount || 0));
         setPeriod(editingBudget.period);
 
-        const initialStartDate = editingBudget.startDate && typeof editingBudget.startDate === 'string' && !isNaN(new Date(editingBudget.startDate).valueOf()) 
-          ? new Date(editingBudget.startDate) 
-          : undefined;
+        let initialStartDate: Date | undefined = undefined;
+        if (editingBudget.startDate && typeof editingBudget.startDate === 'string') {
+            const parsed = parseISO(editingBudget.startDate);
+            if (isValid(parsed)) {
+                initialStartDate = parsed;
+            }
+        }
         setStartDate(initialStartDate);
 
-        const initialEndDate = editingBudget.endDate && typeof editingBudget.endDate === 'string' && !isNaN(new Date(editingBudget.endDate).valueOf())
-          ? new Date(editingBudget.endDate)
-          : undefined;
+        let initialEndDate: Date | undefined = undefined;
+        if (editingBudget.endDate && typeof editingBudget.endDate === 'string') {
+            const parsed = parseISO(editingBudget.endDate);
+            if (isValid(parsed)) {
+                initialEndDate = parsed;
+            }
+        }
         setEndDate(initialEndDate);
         
         setIsRecurringBill(editingBudget.isRecurringBill || false);
@@ -83,6 +91,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
         setUserIncome(''); 
         setUserSpendingHabits('');
       } else {
+        // Reset for create mode or when modal reopens without editingBudget
         setName('');
         setCategory('');
         setNewCategory('');
@@ -131,7 +140,7 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
       return;
     }
 
-    let budgetPayload: Partial<Omit<Budget, 'id'|'userId'>> = { // Partial for easier construction
+    let budgetPayload: Partial<Omit<Budget, 'id'|'userId'>> = {
         name,
         category: finalCategory,
         allocatedAmount: parsedAllocatedAmount,
@@ -144,34 +153,30 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     }
 
     if (period === 'Custom') {
-      if (startDate && !isNaN(startDate.valueOf())) budgetPayload.startDate = startDate.toISOString();
-      else budgetPayload.startDate = undefined; // Ensure it's explicitly undefined if not valid/set
+      if (startDate && isValid(startDate)) budgetPayload.startDate = startDate.toISOString();
+      else budgetPayload.startDate = undefined; 
 
-      if (endDate && !isNaN(endDate.valueOf())) budgetPayload.endDate = endDate.toISOString();
-      else budgetPayload.endDate = undefined; // Ensure it's explicitly undefined
+      if (endDate && isValid(endDate)) budgetPayload.endDate = endDate.toISOString();
+      else budgetPayload.endDate = undefined; 
     } else {
-      // If period is not custom, ensure these are undefined to signal potential deletion in update
       budgetPayload.startDate = undefined;
       budgetPayload.endDate = undefined;
     }
     
     if (isRecurringBill && period === 'Monthly' && dueDateDay) {
         budgetPayload.dueDateDay = dueDateDay;
-    } else if (isRecurringBill && period === 'Monthly' && !dueDateDay) {
-      budgetPayload.dueDateDay = undefined; // Explicitly undefined if cleared
-    } else if (!isRecurringBill || period !== 'Monthly') {
-      budgetPayload.dueDateDay = undefined; // Ensure it's undefined if not applicable
+    } else { // This ensures dueDateDay is undefined if not applicable or cleared
+      budgetPayload.dueDateDay = undefined;
     }
 
 
     if (isEditMode && onUpdateBudget && editingBudget) {
       onUpdateBudget({ 
-        ...editingBudget, // spread existing id, userId
-        ...budgetPayload, // new/updated fields
-      } as Budget); // Cast might be needed if budgetPayload is strictly Omit without id/userId
+        ...editingBudget, 
+        ...budgetPayload, 
+      } as Budget); 
       toast({ title: "Budget Updated", description: `Budget "${name}" has been updated.` });
     } else {
-      // For adding, spentAmount is not part of initial Omit type, so it should be handled by parent
       const { spentAmount: payloadSpentAmountForAdd, ...restOfPayloadForAdd } = budgetPayload;
       onAddBudget(restOfPayloadForAdd as Omit<Budget, 'id' | 'userId' | 'spentAmount'>);
       toast({ title: "Budget Created", description: `Budget "${name}" has been created.` });
@@ -202,8 +207,10 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     setIsSuggesting(false);
   };
   
-  const formContent = ( 
-    <div className="p-6 space-y-4"> {/* Padding moved here */}
+  // This variable holds the JSX for the form fields.
+  // It will be placed inside the <form> tag.
+  const formFieldsContent = ( 
+    <div className="p-6 space-y-3"> {/* Reduced space-y from 4 to 3 */}
       <div>
         <Label htmlFor="budgetName">Budget Name</Label>
         <Input id="budgetName" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Monthly Groceries, Netflix Subscription" required />
@@ -309,13 +316,19 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
           </div>
           <div>
               <Label htmlFor="userSpendingHabits">Describe Your Spending Habits</Label>
-              <Textarea id="userSpendingHabits" value={userSpendingHabits} onChange={e => setUserSpendingHabits(e.target.value)} placeholder="e.g., I spend about $200 on dining out, $100 on hobbies..."/>
+              <Textarea 
+                id="userSpendingHabits" 
+                value={userSpendingHabits} 
+                onChange={e => setUserSpendingHabits(e.target.value)} 
+                placeholder="e.g., I spend about $200 on dining out, $100 on hobbies..."
+                rows={3} // Reduced rows for compactness
+              />
           </div>
           <Button type="button" variant="outline" onClick={handleAISuggestions} disabled={isSuggesting}>
             <Brain className="w-4 h-4 mr-2" /> {isSuggesting ? 'Getting Suggestions...' : 'Get AI Suggestions'}
           </Button>
           {aiSuggestion && (
-            <div className="p-3 mt-2 text-sm border rounded-md bg-background max-h-32 overflow-y-auto">
+            <div className="p-3 mt-2 text-sm border rounded-md bg-background max-h-24 overflow-y-auto"> {/* Reduced max-h */}
               <p className="whitespace-pre-wrap">{aiSuggestion}</p>
             </div>
           )}
@@ -324,16 +337,6 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
     </div>
   );
 
-  const wrappedDialogContent = (
-    <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-      <ScrollArea className="flex-1">
-        {formContent}
-      </ScrollArea>
-      <DialogFooter className="p-6 pt-4 border-t flex-shrink-0">
-        <Button type="submit">{isEditMode ? "Update Budget" : "Create Budget"}</Button>
-      </DialogFooter>
-    </form>
-  );
 
   if (trigger) {
     return (
@@ -346,12 +349,21 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
             </DialogDescription>
           </DialogHeader>
-          {wrappedDialogContent}
+          <form onSubmit={handleSubmit} className="flex-grow min-h-0 overflow-y-auto">
+            {/* The formFieldsContent variable, which is a div with padding and all fields, goes here */}
+            {formFieldsContent}
+          </form>
+          <DialogFooter className="p-6 pt-4 border-t flex-shrink-0">
+            <Button type="button" onClick={handleSubmit}>{isEditMode ? "Update Budget" : "Create Budget"}</Button>
+            {/* Note: Changed Button type to "button" and trigger handleSubmit manually for form inside DialogFooter */}
+            {/* A better practice is to have the submit button inside the form, or use form attribute on button */}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     );
   }
   
+  // Fallback for direct modal usage
   return ( 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0 overflow-hidden">
@@ -361,8 +373,20 @@ export function CreateBudgetModal({ onAddBudget, onUpdateBudget, editingBudget, 
               {isEditMode ? "Update the details of your budget." : "Define a new budget for your spending category."}
             </DialogDescription>
           </DialogHeader>
-          {wrappedDialogContent}
+          <form onSubmit={handleSubmit} className="flex-grow min-h-0 overflow-y-auto">
+             {formFieldsContent}
+          </form>
+          <DialogFooter className="p-6 pt-4 border-t flex-shrink-0">
+            <Button type="button" onClick={(e) => {
+                // Manually call handleSubmit because button is outside the form tag's direct children in this structure
+                // This might need a ref to the form to call form.requestSubmit() for better practice
+                 handleSubmit(e as any); // Cast needed if handleSubmit expects FormEvent from form
+            }}>{isEditMode ? "Update Budget" : "Create Budget"}</Button>
+          </DialogFooter>
         </DialogContent>
     </Dialog>
   );
 }
+
+
+    
