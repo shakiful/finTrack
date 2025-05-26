@@ -41,7 +41,7 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex items-center justify-between h-16 max-w-screen-2xl px-4">
+        <div className="container flex items-center justify-between h-16 px-4 max-w-screen-2xl">
           <Logo />
           <div className="flex items-center gap-2">
             <ModeToggle />
@@ -58,7 +58,7 @@ export default function LandingPage() {
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="py-20 text-center bg-gradient-to-br from-primary/5 via-background to-accent/5 animate-fadeIn">
-          <div className="container">
+          <div className="container mx-auto">
             <h1 className="mb-6 text-5xl font-bold tracking-tight md:text-6xl lg:text-7xl">
               Take Control of Your Finances <span className="text-primary">Effortlessly</span>
             </h1>
