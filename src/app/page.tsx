@@ -154,7 +154,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="py-8 text-center border-t bg-background">
-        <div className="container">
+        <div className="container mx-auto">
           <Logo size="sm"/>
           <p className="mt-2 text-sm text-muted-foreground">
             &copy; {new Date().getFullYear()} FinTrack Flow. All rights reserved.
