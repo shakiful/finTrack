@@ -159,11 +159,11 @@ function AppSidebar() {
 function AppHeader({ title }: { title: string }) {
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-1 min-w-0"> {/* Added flex-1 and min-w-0 */}
         <div className="md:hidden">
           <SidebarTrigger />
         </div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-xl font-semibold truncate">{title}</h1> {/* Added truncate */}
       </div>
       <div className="flex items-center gap-2">
         <ModeToggle />
@@ -175,24 +175,15 @@ function AppHeader({ title }: { title: string }) {
 
 
 export function AppShell({ children, pageTitle }: { children: React.ReactNode, pageTitle: string }) {
-  // The auth.onAuthStateChanged listener ensures that auth.currentUser is updated.
-  // The AppSidebar directly uses auth.currentUser, which will re-render when auth state changes.
-  // So, local state for user details in AppShell for this specific purpose is not strictly necessary
-  // if AppSidebar correctly re-renders upon auth.currentUser changes.
-
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
-      // This listener is good for global reactions to auth state,
-      // like redirecting if user logs out, or updating a global user context.
-      // For components like AppSidebar, directly using auth.currentUser 
-      // (and ensuring the component re-renders when it changes) is often sufficient.
       if (user) {
         // User is signed in
       } else {
         // User is signed out
       }
     });
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    return () => unsubscribe(); 
   }, []);
 
 
@@ -210,4 +201,3 @@ export function AppShell({ children, pageTitle }: { children: React.ReactNode, p
     </SidebarProvider>
   );
 }
-
