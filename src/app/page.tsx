@@ -78,7 +78,7 @@ export default function LandingPage() {
 
         {/* Features Section */}
         <section id="features" className="py-16 bg-background">
-          <div className="container">
+          <div className="container mx-auto">
             <h2 className="mb-12 text-3xl font-bold text-center md:text-4xl animate-fadeInUp" style={{animationDelay: '0.2s'}}>Why FinTrack Flow?</h2>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               <FeatureCard
