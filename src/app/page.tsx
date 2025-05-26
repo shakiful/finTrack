@@ -57,7 +57,7 @@ export default function LandingPage() {
 
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="py-20 text-center bg-gradient-to-br from-primary/5 via-background to-accent/5 animate-fadeIn px-4">
+        <section className="py-20 text-center bg-gradient-to-br from-primary/5 via-background to-accent/5 animate-fadeIn">
           <div className="container">
             <h1 className="mb-6 text-5xl font-bold tracking-tight md:text-6xl lg:text-7xl">
               Take Control of Your Finances <span className="text-primary">Effortlessly</span>
