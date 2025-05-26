@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'FinTrack Flow',
   description: 'Take Control of Your Finances Effortlessly',
+  icons: {
+    icon: 'https://cdn-icons-png.flaticon.com/512/7398/7398202.png',
+  },
 };
 
 export default function RootLayout({
