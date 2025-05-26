@@ -141,7 +141,7 @@ export default function LandingPage() {
 
         {/* CTA Section */}
         <section className="py-20 text-center bg-primary text-primary-foreground">
-          <div className="container animate-fadeInUp" style={{animationDelay: '0.6s'}}>
+          <div className="container mx-auto animate-fadeInUp" style={{animationDelay: '0.6s'}}>
             <h2 className="mb-6 text-4xl font-bold">Ready to Master Your Money?</h2>
             <p className="mb-10 text-lg opacity-90 max-w-2xl mx-auto">
               Join thousands of users who are taking control of their financial future with FinTrack Flow.
