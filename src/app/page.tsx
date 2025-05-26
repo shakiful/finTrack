@@ -117,7 +117,7 @@ export default function LandingPage() {
 
         {/* Financial Wellness Tips Section */}
         <section className="py-16 bg-muted/50">
-          <div className="container">
+          <div className="container mx-auto">
             <h2 className="mb-12 text-3xl font-bold text-center md:text-4xl animate-fadeInUp" style={{animationDelay: '0.4s'}}>Tips for Financial Wellness</h2>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               <TipCard
