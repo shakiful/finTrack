@@ -149,132 +149,134 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences.</p>
+    <div className="max-w-5xl mx-auto">
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground">Manage your account settings and preferences.</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><User className="text-primary"/> Profile Information</CardTitle>
+            <CardDescription>Update your personal details.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleProfileUpdate} className="space-y-6">
+              <div className="flex items-center space-x-4">
+                  <Avatar className="w-20 h-20">
+                      <AvatarImage src={photoURL || undefined} alt={name || "User Avatar"} data-ai-hint="person avatar" />
+                      <AvatarFallback>{name ? name.substring(0, 2).toUpperCase() : (email ? email.substring(0,2).toUpperCase() : "U")}</AvatarFallback>
+                  </Avatar>
+                  <Button variant="outline" type="button" onClick={handleAvatarChange}>Change Avatar</Button>
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" disabled={isProfileLoading}/>
+                </div>
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input id="email" type="email" value={email} readOnly disabled placeholder="Your email address"/>
+                  <p className="text-xs text-muted-foreground mt-1">Email address cannot be changed here.</p>
+                </div>
+              </div>
+              <Button type="submit" disabled={isProfileLoading}>
+                  {isProfileLoading ? "Saving..." : "Save Profile"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Lock className="text-primary"/> Change Password</CardTitle>
+            <CardDescription>Update your account password. Requires re-entering your current password.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input id="currentPassword" type="password" value={currentPasswordForPasswordChange} onChange={(e) => setCurrentPasswordForPasswordChange(e.target.value)} required disabled={isPasswordLoading}/>
+              </div>
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required disabled={isPasswordLoading}/>
+              </div>
+              <div>
+                <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
+                <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} required disabled={isPasswordLoading}/>
+              </div>
+              <Button type="submit" disabled={isPasswordLoading}>
+                  {isPasswordLoading ? "Changing..." : "Change Password"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Bell className="text-primary"/> Notification Preferences</CardTitle>
+            <CardDescription>Manage how you receive notifications.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-3 border rounded-md">
+              <Label htmlFor="emailNotifications" className="flex flex-col">
+                  <span>Email Notifications</span>
+                  <span className="text-xs text-muted-foreground">Receive updates and alerts via email.</span>
+              </Label>
+              <Switch id="emailNotifications" checked={emailNotifications} onCheckedChange={setEmailNotifications} />
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-md">
+              <Label htmlFor="pushNotifications" className="flex flex-col">
+                  <span>Push Notifications</span>
+                  <span className="text-xs text-muted-foreground">Get real-time alerts on your devices. (Conceptual)</span>
+              </Label>
+              <Switch id="pushNotifications" checked={pushNotifications} onCheckedChange={setPushNotifications} disabled/>
+            </div>
+            <Button onClick={handleNotificationSave}>Save Notification Settings</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Palette className="text-primary"/> App Preferences</CardTitle>
+            <CardDescription>Customize your app experience.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="currency" className="flex items-center gap-1"><Globe className="w-4 h-4"/> Currency</Label>
+                  <Select value={currency} onValueChange={setCurrency}>
+                    <SelectTrigger id="currency">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD - United States Dollar</SelectItem>
+                      <SelectItem value="EUR">EUR - Euro</SelectItem>
+                      <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                      <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="language" className="flex items-center gap-1"><Globe className="w-4 h-4"/> Language</Label>
+                  <Select value={language} onValueChange={setLanguage}>
+                    <SelectTrigger id="language">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="es">Español (Spanish)</SelectItem>
+                      <SelectItem value="fr">Français (French)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={handlePreferencesSave}>Save Preferences</Button>
+          </CardContent>
+        </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><User className="text-primary"/> Profile Information</CardTitle>
-          <CardDescription>Update your personal details.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleProfileUpdate} className="space-y-6">
-            <div className="flex items-center space-x-4">
-                <Avatar className="w-20 h-20">
-                    <AvatarImage src={photoURL || undefined} alt={name || "User Avatar"} data-ai-hint="person avatar" />
-                    <AvatarFallback>{name ? name.substring(0, 2).toUpperCase() : (email ? email.substring(0,2).toUpperCase() : "U")}</AvatarFallback>
-                </Avatar>
-                <Button variant="outline" type="button" onClick={handleAvatarChange}>Change Avatar</Button>
-            </div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div>
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" disabled={isProfileLoading}/>
-              </div>
-              <div>
-                <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" value={email} readOnly disabled placeholder="Your email address"/>
-                 <p className="text-xs text-muted-foreground mt-1">Email address cannot be changed here.</p>
-              </div>
-            </div>
-            <Button type="submit" disabled={isProfileLoading}>
-                {isProfileLoading ? "Saving..." : "Save Profile"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lock className="text-primary"/> Change Password</CardTitle>
-          <CardDescription>Update your account password. Requires re-entering your current password.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div>
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <Input id="currentPassword" type="password" value={currentPasswordForPasswordChange} onChange={(e) => setCurrentPasswordForPasswordChange(e.target.value)} required disabled={isPasswordLoading}/>
-            </div>
-            <div>
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required disabled={isPasswordLoading}/>
-            </div>
-            <div>
-              <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
-              <Input id="confirmNewPassword" type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} required disabled={isPasswordLoading}/>
-            </div>
-            <Button type="submit" disabled={isPasswordLoading}>
-                {isPasswordLoading ? "Changing..." : "Change Password"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="text-primary"/> Notification Preferences</CardTitle>
-          <CardDescription>Manage how you receive notifications.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <Label htmlFor="emailNotifications" className="flex flex-col">
-                <span>Email Notifications</span>
-                <span className="text-xs text-muted-foreground">Receive updates and alerts via email.</span>
-            </Label>
-            <Switch id="emailNotifications" checked={emailNotifications} onCheckedChange={setEmailNotifications} />
-          </div>
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <Label htmlFor="pushNotifications" className="flex flex-col">
-                <span>Push Notifications</span>
-                <span className="text-xs text-muted-foreground">Get real-time alerts on your devices. (Conceptual)</span>
-            </Label>
-            <Switch id="pushNotifications" checked={pushNotifications} onCheckedChange={setPushNotifications} disabled/>
-          </div>
-          <Button onClick={handleNotificationSave}>Save Notification Settings</Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Palette className="text-primary"/> App Preferences</CardTitle>
-          <CardDescription>Customize your app experience.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div>
-                <Label htmlFor="currency" className="flex items-center gap-1"><Globe className="w-4 h-4"/> Currency</Label>
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger id="currency">
-                    <SelectValue placeholder="Select currency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD - United States Dollar</SelectItem>
-                    <SelectItem value="EUR">EUR - Euro</SelectItem>
-                    <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                    <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="language" className="flex items-center gap-1"><Globe className="w-4 h-4"/> Language</Label>
-                 <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger id="language">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="es">Español (Spanish)</SelectItem>
-                    <SelectItem value="fr">Français (French)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-             <Button onClick={handlePreferencesSave}>Save Preferences</Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }

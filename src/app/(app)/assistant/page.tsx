@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -120,75 +121,77 @@ export default function SmartAssistantPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Smart Financial Assistant</h1>
-        <p className="text-muted-foreground">Leverage AI to get insights and suggestions for your finances.</p>
+    <div className="max-w-5xl mx-auto">
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Smart Financial Assistant</h1>
+          <p className="text-muted-foreground">Leverage AI to get insights and suggestions for your finances.</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Brain className="text-primary"/> AI-Powered Budget Suggestions</CardTitle>
+            <CardDescription>Get personalized budget recommendations based on your income and spending.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="income">Monthly Income ($)</Label>
+              <Input id="income" type="number" value={income} onChange={(e) => setIncome(e.target.value)} placeholder="e.g., 5000" />
+            </div>
+            <div>
+              <Label htmlFor="spendingHabits">Describe Your Spending Habits</Label>
+              <Textarea id="spendingHabits" value={spendingHabits} onChange={(e) => setSpendingHabits(e.target.value)} placeholder="e.g., Dining out: $200, Groceries: $400, Hobbies: $100..." />
+            </div>
+            <Button onClick={handleBudgetSuggestions} disabled={isSuggestingBudget}>
+              {isSuggestingBudget ? 'Generating...' : 'Get Budget Suggestions'}
+            </Button>
+            <AIResultDisplay result={budgetSuggestionResult} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Lightbulb className="text-primary"/> Identify Potential Savings</CardTitle>
+            <CardDescription>Let AI analyze your spending and find ways to save money.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="transactionData">Transaction Data (JSON format or detailed list)</Label>
+              <Textarea id="transactionData" value={transactionDataForSavings} onChange={(e) => setTransactionDataForSavings(e.target.value)} rows={5} placeholder="Paste your transaction data here or describe it." />
+              <p className="text-xs text-muted-foreground mt-1">Using example transactions for demo. Replace with your actual data.</p>
+            </div>
+            <div>
+              <Label htmlFor="financialGoals">Financial Goals (Optional)</Label>
+              <Input id="financialGoals" value={financialGoals} onChange={(e) => setFinancialGoals(e.target.value)} placeholder="e.g., Save for a car, Pay off debt" />
+            </div>
+            <Button onClick={handleIdentifySavings} disabled={isIdentifyingSavings}>
+              {isIdentifyingSavings ? 'Analyzing...' : 'Find Savings'}
+            </Button>
+            <AIResultDisplay result={savingsResult} />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Brain className="text-primary"/> Smart Transaction Categorization</CardTitle>
+            <CardDescription>Automatically categorize a transaction based on its description and amount.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="transactionDesc">Transaction Description</Label>
+              <Input id="transactionDesc" value={transactionDesc} onChange={(e) => setTransactionDesc(e.target.value)} placeholder="e.g., Starbucks Coffee" />
+            </div>
+            <div>
+              <Label htmlFor="transactionAmount">Transaction Amount ($)</Label>
+              <Input id="transactionAmount" type="number" value={transactionAmount} onChange={(e) => setTransactionAmount(e.target.value)} placeholder="e.g., 5.75 (use negative for expenses if applicable)" />
+            </div>
+            <Button onClick={handleCategorizeTransaction} disabled={isCategorizing}>
+              {isCategorizing ? 'Categorizing...' : 'Categorize Transaction'}
+            </Button>
+            <AIResultDisplay result={categorizationResult} />
+          </CardContent>
+        </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Brain className="text-primary"/> AI-Powered Budget Suggestions</CardTitle>
-          <CardDescription>Get personalized budget recommendations based on your income and spending.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="income">Monthly Income ($)</Label>
-            <Input id="income" type="number" value={income} onChange={(e) => setIncome(e.target.value)} placeholder="e.g., 5000" />
-          </div>
-          <div>
-            <Label htmlFor="spendingHabits">Describe Your Spending Habits</Label>
-            <Textarea id="spendingHabits" value={spendingHabits} onChange={(e) => setSpendingHabits(e.target.value)} placeholder="e.g., Dining out: $200, Groceries: $400, Hobbies: $100..." />
-          </div>
-          <Button onClick={handleBudgetSuggestions} disabled={isSuggestingBudget}>
-            {isSuggestingBudget ? 'Generating...' : 'Get Budget Suggestions'}
-          </Button>
-          <AIResultDisplay result={budgetSuggestionResult} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lightbulb className="text-primary"/> Identify Potential Savings</CardTitle>
-          <CardDescription>Let AI analyze your spending and find ways to save money.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="transactionData">Transaction Data (JSON format or detailed list)</Label>
-            <Textarea id="transactionData" value={transactionDataForSavings} onChange={(e) => setTransactionDataForSavings(e.target.value)} rows={5} placeholder="Paste your transaction data here or describe it." />
-            <p className="text-xs text-muted-foreground mt-1">Using example transactions for demo. Replace with your actual data.</p>
-          </div>
-          <div>
-            <Label htmlFor="financialGoals">Financial Goals (Optional)</Label>
-            <Input id="financialGoals" value={financialGoals} onChange={(e) => setFinancialGoals(e.target.value)} placeholder="e.g., Save for a car, Pay off debt" />
-          </div>
-          <Button onClick={handleIdentifySavings} disabled={isIdentifyingSavings}>
-            {isIdentifyingSavings ? 'Analyzing...' : 'Find Savings'}
-          </Button>
-          <AIResultDisplay result={savingsResult} />
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Brain className="text-primary"/> Smart Transaction Categorization</CardTitle>
-          <CardDescription>Automatically categorize a transaction based on its description and amount.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="transactionDesc">Transaction Description</Label>
-            <Input id="transactionDesc" value={transactionDesc} onChange={(e) => setTransactionDesc(e.target.value)} placeholder="e.g., Starbucks Coffee" />
-          </div>
-           <div>
-            <Label htmlFor="transactionAmount">Transaction Amount ($)</Label>
-            <Input id="transactionAmount" type="number" value={transactionAmount} onChange={(e) => setTransactionAmount(e.target.value)} placeholder="e.g., 5.75 (use negative for expenses if applicable)" />
-          </div>
-          <Button onClick={handleCategorizeTransaction} disabled={isCategorizing}>
-            {isCategorizing ? 'Categorizing...' : 'Categorize Transaction'}
-          </Button>
-          <AIResultDisplay result={categorizationResult} />
-        </CardContent>
-      </Card>
     </div>
   );
 }
